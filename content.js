@@ -490,21 +490,27 @@
       const tag = el.tagName;
       if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'HEAD' || tag === 'HTML' || tag === 'BODY' || tag === 'NOSCRIPT') continue;
 
-      // Try title attribute first (Fluent UI often sets it)
+      // Check title attribute on ANY element (works for deep containers too)
       let text = el.getAttribute('title')?.trim();
+      let matchObj = text ? findMatch(text) : null;
 
-      if (!text) {
-        if (el.children.length > 2) continue;
-        text = el.textContent?.trim();
+      // For leaf-ish elements, also check aria-label and textContent
+      if (!matchObj) {
+        const ariaLabel = el.getAttribute('aria-label')?.trim();
+        if (ariaLabel) matchObj = findMatch(ariaLabel);
       }
 
-      if (!text || text.length < 2 || text.length > 300) continue;
+      if (!matchObj && el.children.length <= 3) {
+        text = el.textContent?.trim();
+        if (text && text.length >= 2 && text.length < 300) {
+          matchObj = findMatch(text);
+        }
+      }
 
-      const obj = findMatch(text);
-      if (!obj) continue;
+      if (!matchObj) continue;
 
-      el.setAttribute(PROCESSED, obj.type);
-      el.setAttribute(ID_ATTR, obj.id);
+      el.setAttribute(PROCESSED, matchObj.type);
+      el.setAttribute(ID_ATTR, matchObj.id);
       el.classList.add('il-link');
       el.style.cursor = 'pointer';
       el.addEventListener('mouseenter', onEnter);
@@ -516,19 +522,24 @@
       log(`GridScan: matched ${matched} cells ✓`);
     } else if (IS_BLADE && !scanGridCells._dumped) {
       scanGridCells._dumped = true;
-      // Dump actual DOM text to see what's there
       const samples = [];
-      for (let i = 0; i < all.length && samples.length < 30; i++) {
+      const titles = [];
+      for (let i = 0; i < all.length; i++) {
         const el = all[i];
         if (['SCRIPT','STYLE','HEAD','HTML','BODY','NOSCRIPT','BR','HR','SVG','PATH','LINK','META'].includes(el.tagName)) continue;
-        if (el.children.length > 2) continue;
-        const t = el.textContent?.trim();
-        if (t && t.length >= 3 && t.length < 150 && !samples.includes(t)) samples.push(t);
+        const t = el.getAttribute('title')?.trim();
+        if (t && t.length >= 3 && !titles.includes(t)) titles.push(t);
+        if (el.children.length > 3) continue;
+        const tc = el.textContent?.trim();
+        if (tc && tc.length >= 3 && tc.length < 100 && !samples.includes(tc)) samples.push(tc);
+        if (samples.length >= 20 && titles.length >= 10) break;
       }
       const names = [...nameToObj.keys()].slice(0, 5);
       log('GridScan: 0 matches. Looking for:', names);
-      log('🔍 Actual DOM text in this blade (first 30 unique):', samples);
+      log('🔍 DOM titles found:', titles.slice(0, 15));
+      log('🔍 DOM textContent (leaf):', samples.slice(0, 20));
     }
+  }
   }
 
   // ==========================================================
@@ -796,7 +807,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v1.9.2 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.0.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
@@ -822,9 +833,24 @@
     }
 
     if (IS_BLADE) {
-      // Blade iframe: read shared data from main frame, scan DOM
       setupBladeObserver();
       loadSharedData();
+      // Poll for shared data in case storage listener misses the update
+      let pollCount = 0;
+      const pollInterval = setInterval(() => {
+        if (nameToObj.size > 0 && pollCount > 3) { clearInterval(pollInterval); return; }
+        pollCount++;
+        chrome.storage.session.get(['ilLookup'], (r) => {
+          if (r?.ilLookup && nameToObj.size === 0) {
+            const entries = Object.entries(r.ilLookup);
+            for (const [name, obj] of entries) nameToObj.set(name, obj);
+            log(`🔲 Blade: polled ${entries.length} entries (poll #${pollCount})`);
+            scanGridCells();
+          } else if (nameToObj.size > 0) {
+            scanGridCells(); // re-scan with existing data (DOM may have updated)
+          }
+        });
+      }, 2000);
     }
 
     log('✅ Ready.');
