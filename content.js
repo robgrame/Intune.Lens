@@ -514,14 +514,16 @@
     card._pinned = false;
 
     card.addEventListener('mouseenter', () => {
-      log('🟢 Card mouseenter');
       clearTimeout(hideTimer);
+      // Auto-pin when mouse enters card
+      if (!card._pinned) {
+        card._pinned = true;
+        card.classList.add('il-pinned');
+        const pin = card.querySelector('.il-pin');
+        if (pin) { pin.textContent = '📍'; pin.title = 'Unpin card'; }
+      }
     });
-    card.addEventListener('mouseleave', (e) => {
-      log('🔴 Card mouseleave → relatedTarget:', e.relatedTarget?.tagName, e.relatedTarget?.className?.substring?.(0, 40));
-      if (!card._pinned) scheduleHide();
-    });
-    card.addEventListener('wheel', () => log('🔵 Card wheel'), { passive: true });
+    card.addEventListener('mouseleave', () => { if (!card._pinned) scheduleHide(); });
     // Auto-pin on scroll (user is reading content)
     card.addEventListener('scroll', () => {
       if (!card._pinned) {
@@ -574,7 +576,7 @@
     // Close
     bar.querySelector('.il-close').addEventListener('click', (e) => {
       e.stopPropagation();
-      hideImmediate();
+      hideImmediate(true);
     });
 
     // Pin toggle
@@ -615,11 +617,15 @@
     });
   }
 
-  function scheduleHide() { log('⏱️ scheduleHide (600ms)'); clearTimeout(hideTimer); hideTimer = setTimeout(hideImmediate, 600); }
+  function scheduleHide() {
+    if (currentCard?._pinned) return; // never auto-hide pinned cards
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hideImmediate, 600);
+  }
 
-  function hideImmediate() {
+  function hideImmediate(force) {
     if (!currentCard) return;
-    log('❌ hideImmediate — closing card. Pinned:', currentCard._pinned);
+    if (currentCard._pinned && !force) return; // pinned → only close via ✕
     currentCard.classList.add('il-exit');
     const ref = currentCard;
     setTimeout(() => ref.remove(), 200);
@@ -842,7 +848,7 @@
 
   // Show card at a fixed position (for FAB clicks)
   function showCardFixed(type, id) {
-    hideImmediate();
+    hideImmediate(true);
     const container = ensureContainer();
     const card = document.createElement('div');
     card.className = 'il-card il-enter il-card-fixed';
@@ -862,7 +868,7 @@
     close.className = 'il-close';
     close.innerHTML = '✕';
     close.title = 'Close';
-    close.addEventListener('click', (e) => { e.stopPropagation(); hideImmediate(); });
+    close.addEventListener('click', (e) => { e.stopPropagation(); hideImmediate(true); });
     card.prepend(close);
 
     card.addEventListener('mouseenter', () => clearTimeout(hideTimer));
@@ -902,7 +908,6 @@
   }
 
   function onLeave() {
-    log('🟠 Anchor mouseleave');
     clearTimeout(hoverTimer);
     scheduleHide();
   }
@@ -1053,7 +1058,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.2.3 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.3.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
