@@ -147,37 +147,35 @@
     }
     if (!dev._groups) dev._groups = [];
 
-    // Managed app install states via device status reports
+    // Managed/detected apps on this device
     dev._apps = [];
     try {
-      // Use beta endpoint for device app list with install state
-      const result = await graphQuery(
-        `/beta/deviceManagement/managedDevices/${id}?$expand=detectedApps($select=displayName,version)`,
+      const detected = await graphQuery(
+        `/beta/deviceManagement/managedDevices('${id}')/detectedApps?$select=displayName,version&$top=200`,
         `dev-apps:${id}`
       );
-      if (result.detectedApps) {
-        dev._apps = result.detectedApps.map(a => ({
-          displayName: a.displayName,
-          displayVersion: a.version,
-          installState: 'installed'
-        }));
-      }
-      log(`📱 Device detected apps: ${dev._apps.length}`);
-    } catch {
-      // Fallback: try the top-level detectedApps endpoint
+      dev._apps = (detected.value || []).map(a => ({
+        displayName: a.displayName,
+        displayVersion: a.version,
+        installState: 'installed'
+      }));
+      log(`📱 Device apps: ${dev._apps.length} detected`);
+    } catch (e1) {
+      log(`📱 Approach 1 failed: ${e1.message?.substring(0, 80)}`);
+      // Fallback: try with parenthesis syntax
       try {
-        const detected = await graphQuery(
-          `/beta/deviceManagement/detectedApps?$filter=managedDevices/any(d:d/id eq '${id}')&$select=displayName,version&$top=100`,
+        const d2 = await graphQuery(
+          `/beta/deviceManagement/detectedApps?$filter=managedDevices/any(d:d/id eq '${id}')&$select=displayName,version&$top=200`,
           `dev-apps2:${id}`
         );
-        dev._apps = (detected.value || []).map(a => ({
+        dev._apps = (d2.value || []).map(a => ({
           displayName: a.displayName,
           displayVersion: a.version,
           installState: 'installed'
         }));
-        log(`📱 Device detected apps (fallback): ${dev._apps.length}`);
-      } catch (err2) {
-        log(`📱 Device apps: not available (${err2.message?.substring(0, 60)})`);
+        log(`📱 Device apps (fallback): ${dev._apps.length} detected`);
+      } catch (e2) {
+        log(`📱 Approach 2 failed: ${e2.message?.substring(0, 80)}`);
       }
     }
 
@@ -1142,7 +1140,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.5.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.5.2 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
