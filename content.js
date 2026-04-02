@@ -147,35 +147,38 @@
     }
     if (!dev._groups) dev._groups = [];
 
-    // Managed app install states — try multiple approaches
+    // Managed app install states via device status reports
     dev._apps = [];
-    // Approach 1: beta managedAppDiagnostics (v1.0 detectedApps for installed apps)
     try {
-      const detected = await graphQuery(
-        `/deviceManagement/managedDevices/${id}/detectedApps?$select=displayName,version,sizeInByte&$top=100`,
-        `dev-detected:${id}`
+      // Use beta endpoint for device app list with install state
+      const result = await graphQuery(
+        `/beta/deviceManagement/managedDevices/${id}?$expand=detectedApps($select=displayName,version)`,
+        `dev-apps:${id}`
       );
-      const apps = (detected.value || []).map(a => ({
-        displayName: a.displayName,
-        displayVersion: a.version,
-        installState: 'installed'
-      }));
-      // Now get app statuses from beta to find failures
+      if (result.detectedApps) {
+        dev._apps = result.detectedApps.map(a => ({
+          displayName: a.displayName,
+          displayVersion: a.version,
+          installState: 'installed'
+        }));
+      }
+      log(`📱 Device detected apps: ${dev._apps.length}`);
+    } catch {
+      // Fallback: try the top-level detectedApps endpoint
       try {
-        const statuses = await graphQuery(
-          `/beta/deviceManagement/managedDevices/${id}/managedDeviceAppConfigurationStates`,
-          `dev-appstatus:${id}`
+        const detected = await graphQuery(
+          `/beta/deviceManagement/detectedApps?$filter=managedDevices/any(d:d/id eq '${id}')&$select=displayName,version&$top=100`,
+          `dev-apps2:${id}`
         );
-        for (const s of (statuses.value || [])) {
-          if (s.state === 'error' || s.state === 'failed') {
-            apps.push({ displayName: s.displayName, installState: 'failed', displayVersion: s.version || '' });
-          }
-        }
-      } catch { /* optional */ }
-      dev._apps = apps;
-      log(`📱 Device apps: ${apps.length} (${apps.filter(a => a.installState === 'installed').length} installed, ${apps.filter(a => a.installState === 'failed').length} failed)`);
-    } catch (err) {
-      log(`📱 Device apps: ${err.message}`);
+        dev._apps = (detected.value || []).map(a => ({
+          displayName: a.displayName,
+          displayVersion: a.version,
+          installState: 'installed'
+        }));
+        log(`📱 Device detected apps (fallback): ${dev._apps.length}`);
+      } catch (err2) {
+        log(`📱 Device apps: not available (${err2.message?.substring(0, 60)})`);
+      }
     }
 
     return dev;
@@ -1139,7 +1142,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.5.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.5.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
