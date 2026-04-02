@@ -639,8 +639,8 @@
     { re: /UserManagementMenuBlade/i,
       endpoint: `/users?$select=id,displayName,userPrincipalName,jobTitle,department,accountEnabled&$top=50`,
       type: 'user', nameField: 'displayName' },
-    { re: /AppsMenu/i,
-      endpoint: `/deviceAppManagement/mobileApps?$select=id,displayName,publisher,description&$top=50&$filter=isAssigned eq true`,
+    { re: /Apps(Windows)?Menu/i,
+      endpoint: `/deviceAppManagement/mobileApps?$select=id,displayName,publisher,description,createdDateTime,lastModifiedDateTime&$top=50`,
       type: 'app', nameField: 'displayName' },
   ];
 
@@ -669,7 +669,8 @@
               nameToObj.set(item.userPrincipalName.toLowerCase().trim(), { id: item.id, type: lp.type });
           }
 
-          log(`📇 Lookup table: ${nameToObj.size} entries. Scanning grid…`);
+          log(`📇 Lookup table: ${nameToObj.size} entries. Sharing with iframes…`);
+          shareDataWithBlades();
           setTimeout(scanGridCells, 300);
           setTimeout(scanGridCells, 1500);
           setTimeout(scanGridCells, 4000);
@@ -690,6 +691,16 @@
   }
 
   // ==========================================================
+  // Share data: main frame → blade iframes via chrome.storage
+  // ==========================================================
+  function shareDataWithBlades() {
+    const lookup = Object.fromEntries(nameToObj);
+    chrome.storage.session.set({ ilLookup: lookup }, () => {
+      log(`📤 Shared ${nameToObj.size} entries with blade iframes`);
+    });
+  }
+
+  // ==========================================================
   // MutationObserver — react to SPA navigation
   // ==========================================================
   let scanTimer = null;
@@ -704,6 +715,8 @@
       log('Hash changed →', location.hash.substring(0, 100));
       hideImmediate();
       updateFab();
+      lastListFetchHash = ''; // allow re-fetch on new page
+      nameToObj.clear();      // clear stale data
       fetchListData();
       clearTimeout(scanTimer);
       scan._dbg = false;
@@ -757,7 +770,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v1.8.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v1.9.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
@@ -783,54 +796,42 @@
     }
 
     if (IS_BLADE) {
-      // Blade iframe: independent data fetch + DOM scan
+      // Blade iframe: read shared data from main frame, scan DOM
       setupBladeObserver();
-      setTimeout(() => fetchBladeData(), 3000);
+      loadSharedData();
     }
 
     log('✅ Ready.');
   }
 
   // ==========================================================
-  // Blade iframe mode — fetch devices and scan this frame's DOM
+  // Blade iframe — read data shared by main frame
   // ==========================================================
-  async function fetchBladeData(retryCount = 0) {
-    if (nameToObj.size > 0 && retryCount === 0) {
-      log('🔲 Blade: already have data, scanning…');
-      scanGridCells();
-      return;
-    }
-
-    log(`🔲 Blade: fetching devices…${retryCount ? ` (retry #${retryCount})` : ''}`);
-    try {
-      const data = await graphQuery(
-        `/deviceManagement/managedDevices?$select=${DEVICE_SELECT}&$top=50&$orderby=deviceName`,
-        'list:device:blade'
-      );
-      const items = data.value || [];
-      log(`🔲 Blade: got ${items.length} devices ✓`);
-
-      for (const item of items) {
-        objectCache.set(item.id, { ...item, _t: 'device' });
-        if (item.deviceName)
-          nameToObj.set(item.deviceName.toLowerCase().trim(), { id: item.id, type: 'device' });
-        if (item.userPrincipalName)
-          nameToObj.set(item.userPrincipalName.toLowerCase().trim(), { id: item.id, type: 'device' });
-      }
-
-      log(`🔲 Blade: lookup ${nameToObj.size} entries. Scanning DOM…`);
-      scanGridCells();
-      setTimeout(scanGridCells, 1500);
-      setTimeout(scanGridCells, 4000);
-    } catch (err) {
-      if (retryCount < 8 && /token|Token|expired|401/i.test(err.message)) {
-        const delay = (retryCount + 1) * 2000;
-        log(`⏳ Token not ready — retry #${retryCount + 1} in ${delay / 1000}s`);
-        setTimeout(() => fetchBladeData(retryCount + 1), delay);
+  function loadSharedData() {
+    chrome.storage.session.get(['ilLookup'], (r) => {
+      if (r?.ilLookup) {
+        const entries = Object.entries(r.ilLookup);
+        for (const [name, obj] of entries) nameToObj.set(name, obj);
+        log(`🔲 Blade: loaded ${entries.length} entries from shared data`);
+        scanGridCells();
+        setTimeout(scanGridCells, 1000);
+        setTimeout(scanGridCells, 3000);
       } else {
-        warn(`Blade Graph failed: ${err.message}`);
+        log('🔲 Blade: no shared data yet, will listen for updates');
       }
-    }
+    });
+
+    // Listen for updates (e.g. user navigates from devices → apps)
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'session' && changes.ilLookup?.newValue) {
+        nameToObj.clear();
+        const entries = Object.entries(changes.ilLookup.newValue);
+        for (const [name, obj] of entries) nameToObj.set(name, obj);
+        log(`🔲 Blade: updated to ${entries.length} entries`);
+        scanGridCells();
+        setTimeout(scanGridCells, 1000);
+      }
+    });
   }
 
   function setupBladeObserver() {
