@@ -147,6 +147,20 @@
     }
     if (!dev._groups) dev._groups = [];
 
+    // Managed app install states
+    try {
+      const appStates = await graphQuery(
+        `/deviceManagement/managedDevices/${id}/mobileAppIntentAndStates`,
+        `dev-apps:${id}`
+      );
+      dev._apps = [];
+      for (const entry of (appStates.value || [])) {
+        for (const app of (entry.mobileAppList || [])) {
+          dev._apps.push(app);
+        }
+      }
+    } catch { dev._apps = []; }
+
     return dev;
   }
 
@@ -242,6 +256,62 @@
   };
   function badge(state) { return COMPLIANCE[state] || COMPLIANCE.unknown; }
 
+  const APP_STATE_MAP = {
+    installed:       { cls: 'ok',   label: 'Installed' },
+    failed:          { cls: 'bad',  label: 'Failed' },
+    notInstalled:    { cls: 'unk',  label: 'Not installed' },
+    uninstallFailed: { cls: 'bad',  label: 'Uninstall failed' },
+    pendingInstall:  { cls: 'warn', label: 'Pending' },
+    unknown:         { cls: 'unk',  label: 'Unknown' },
+    notApplicable:   { cls: 'unk',  label: 'N/A' },
+  };
+
+  function deviceAppsHtml(apps) {
+    if (!apps || apps.length === 0) return '';
+
+    const byState = {};
+    for (const app of apps) {
+      const st = app.installState || 'unknown';
+      if (!byState[st]) byState[st] = [];
+      byState[st].push(app);
+    }
+
+    const failed = byState.failed || [];
+    const uninstallFailed = byState.uninstallFailed || [];
+    const pending = byState.pendingInstall || [];
+    const installed = byState.installed || [];
+    const other = apps.length - failed.length - uninstallFailed.length - pending.length - installed.length;
+
+    // Stats row
+    const statsHtml = `
+      <div class="il-stats">
+        <div class="il-stat ok-bg"><span class="il-stat-n">${installed.length}</span><span class="il-stat-l">Installed</span></div>
+        <div class="il-stat bad-bg"><span class="il-stat-n">${failed.length + uninstallFailed.length}</span><span class="il-stat-l">Failed</span></div>
+        <div class="il-stat warn-bg"><span class="il-stat-n">${pending.length}</span><span class="il-stat-l">Pending</span></div>
+        ${other > 0 ? `<div class="il-stat unk-bg"><span class="il-stat-n">${other}</span><span class="il-stat-l">Other</span></div>` : ''}
+      </div>`;
+
+    // Failed apps detail list
+    const allFailed = [...failed, ...uninstallFailed];
+    const failedHtml = allFailed.length > 0 ? allFailed.map(a =>
+      `<div class="il-dev-item"><span class="il-dot bad"></span>${esc(a.displayName || a.applicationId)} ${a.displayVersion ? `<span class="il-dev-os">${esc(a.displayVersion)}</span>` : ''}</div>`
+    ).join('') : '';
+
+    // Pending apps
+    const pendingHtml = pending.length > 0 ? pending.map(a =>
+      `<div class="il-dev-item"><span class="il-dot warn"></span>${esc(a.displayName || a.applicationId)} ${a.displayVersion ? `<span class="il-dev-os">${esc(a.displayVersion)}</span>` : ''}</div>`
+    ).join('') : '';
+
+    return `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Managed Apps (${apps.length})</div>
+          ${statsHtml}
+          ${failedHtml ? '<div class="il-sec-sub">Failed</div>' + failedHtml : ''}
+          ${pendingHtml ? '<div class="il-sec-sub">Pending</div>' + pendingHtml : ''}
+        </div>`;
+  }
+
   // ==========================================================
   // Card templates
   // ==========================================================
@@ -332,6 +402,7 @@
         ${cpHtml}
         ${cfHtml}
         ${grpHtml}
+        ${deviceAppsHtml(d._apps)}
       </div>
       <div class="il-foot"><span class="il-tag">DEVICE</span><span class="il-brand">Intune Lens</span></div>`;
   }
@@ -1051,7 +1122,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.3.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.4.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
