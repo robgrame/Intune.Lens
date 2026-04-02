@@ -514,6 +514,15 @@
 
     card.addEventListener('mouseenter', () => clearTimeout(hideTimer));
     card.addEventListener('mouseleave', () => { if (!card._pinned) scheduleHide(); });
+    // Auto-pin on scroll (user is reading content)
+    card.addEventListener('scroll', () => {
+      if (!card._pinned) {
+        card._pinned = true;
+        card.classList.add('il-pinned');
+        const pin = card.querySelector('.il-pin');
+        if (pin) { pin.textContent = '📍'; pin.title = 'Unpin card'; }
+      }
+    }, { passive: true });
 
     requestAnimationFrame(() => card.classList.remove('il-enter'));
 
@@ -591,7 +600,7 @@
     });
   }
 
-  function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(hideImmediate, 300); }
+  function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(hideImmediate, 600); }
 
   function hideImmediate() {
     if (!currentCard) return;
@@ -1027,7 +1036,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.2.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.2.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
