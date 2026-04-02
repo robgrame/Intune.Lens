@@ -682,7 +682,7 @@
       console.log('[Intune Lens] Not on Intune portal — inactive.');
       return;
     }
-    log('🚀 Intune Lens v1.2.0 — Initializing on', location.href);
+    log('🚀 Intune Lens v1.3.0 — Initializing on', location.href);
     log('document.readyState =', document.readyState);
     loadSettings();
     setupBridge();
