@@ -28,8 +28,8 @@
 /* ---- Card shell ---- */
 .il-card {
   position: absolute;
-  width: 380px;
-  max-height: 500px;
+  width: 400px;
+  max-height: 600px;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.07);
@@ -41,9 +41,11 @@
   line-height: 1.5;
   color: #323130;
   pointer-events: auto;
-  transition: opacity .2s ease, transform .2s ease;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity .15s ease, transform .15s ease;
 }
-.il-enter { opacity: 0; transform: translateY(4px); }
+.il-enter { opacity: 0; transform: translateY(6px); }
 .il-exit  { opacity: 0; transform: translateY(-4px); pointer-events: none; }
 
 /* ---- Header ---- */
@@ -108,6 +110,30 @@
 .il-dot.warn { background: #986f0b; }
 .il-dot.unk  { background: #8a8886; }
 .il-dev-os   { color: #8a8886; font-size: 11px; }
+
+/* ---- Stats grid (install counts, compliance counts) ---- */
+.il-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 6px; margin-bottom: 8px;
+}
+.il-stat {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px 4px; border-radius: 6px; text-align: center;
+}
+.il-stat-n { font-size: 18px; font-weight: 700; line-height: 1.2; }
+.il-stat-l { font-size: 10px; text-transform: uppercase; letter-spacing: .3px; opacity: .8; }
+.il-stat.ok-bg   { background: #dff6dd; color: #107c10; }
+.il-stat.bad-bg  { background: #fde7e9; color: #d13438; }
+.il-stat.warn-bg { background: #fff4ce; color: #986f0b; }
+.il-stat.unk-bg  { background: #f3f2f1; color: #605e5c; }
+
+/* ---- Assignment list ---- */
+.il-assign-list { display: flex; flex-direction: column; gap: 4px; }
+.il-assign-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; padding: 2px 0;
+}
+.il-assign-target { color: #8a8886; font-size: 11px; margin-left: auto; }
 
 /* ---- Description block ---- */
 .il-desc { font-size: 12px; color: #605e5c; margin-top: 8px; line-height: 1.6; }
@@ -206,4 +232,9 @@
   #il-fab { background: linear-gradient(135deg, #2b88d8, #0078d4); }
   .il-close { background: rgba(255,255,255,.1); color: #a0a0a0; }
   .il-close:hover { background: rgba(255,255,255,.2); }
+  .il-stat.ok-bg   { background: #1a3a1a; color: #5dc75d; }
+  .il-stat.bad-bg  { background: #3a1a1a; color: #f08080; }
+  .il-stat.warn-bg { background: #3a3a1a; color: #ffd700; }
+  .il-stat.unk-bg  { background: #3a3a3a; color: #a0a0a0; }
+  .il-assign-target { color: #808080; }
 }

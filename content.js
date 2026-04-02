@@ -100,13 +100,54 @@
     'id','deviceName','operatingSystem','osVersion','model','manufacturer',
     'serialNumber','lastSyncDateTime','complianceState','enrolledDateTime',
     'userPrincipalName','managementAgent','deviceEnrollmentType',
-    'isEncrypted','isSupervised','totalStorageSpaceInBytes','freeStorageSpaceInBytes'
+    'isEncrypted','isSupervised','totalStorageSpaceInBytes','freeStorageSpaceInBytes',
+    'azureADDeviceId','deviceCategoryDisplayName','jailBroken',
+    'wiFiMacAddress','ethernetMacAddress','phoneNumber'
   ].join(',');
 
   async function fetchDevice(id) {
-    const cached = objectCache.get(id);
-    if (cached?.deviceName) return cached;
-    return graphQuery(`/deviceManagement/managedDevices/${id}?$select=${DEVICE_SELECT}`, `dev:${id}`);
+    let dev = objectCache.get(id);
+    if (!dev?.deviceName) {
+      dev = await graphQuery(`/deviceManagement/managedDevices/${id}?$select=${DEVICE_SELECT}`, `dev:${id}`);
+    }
+
+    // Compliance policy states
+    try {
+      const cp = await graphQuery(
+        `/deviceManagement/managedDevices/${id}/deviceCompliancePolicyStates`,
+        `dev-compliance:${id}`
+      );
+      dev._compliancePolicies = cp.value || [];
+    } catch { dev._compliancePolicies = []; }
+
+    // Configuration profile states
+    try {
+      const cf = await graphQuery(
+        `/deviceManagement/managedDevices/${id}/deviceConfigurationStates`,
+        `dev-config:${id}`
+      );
+      dev._configProfiles = cf.value || [];
+    } catch { dev._configProfiles = []; }
+
+    // Group memberships (via Azure AD device)
+    if (dev.azureADDeviceId) {
+      try {
+        const aadDevices = await graphQuery(
+          `/devices?$filter=deviceId eq '${dev.azureADDeviceId}'&$select=id`,
+          `dev-aad:${dev.azureADDeviceId}`
+        );
+        if (aadDevices.value?.[0]?.id) {
+          const groups = await graphQuery(
+            `/devices/${aadDevices.value[0].id}/memberOf?$select=displayName,groupTypes&$top=10`,
+            `dev-groups:${dev.azureADDeviceId}`
+          );
+          dev._groups = (groups.value || []).filter(g => g.displayName);
+        }
+      } catch { /* groups are optional */ }
+    }
+    if (!dev._groups) dev._groups = [];
+
+    return dev;
   }
 
   async function fetchUser(id) {
@@ -128,12 +169,32 @@
   }
 
   async function fetchApp(id) {
-    const cached = objectCache.get(id);
-    if (cached?.publisher !== undefined) return cached;
-    return graphQuery(
-      `/deviceAppManagement/mobileApps/${id}?$select=displayName,publisher,description,createdDateTime,lastModifiedDateTime`,
-      `app:${id}`
-    );
+    let app = objectCache.get(id);
+    if (!app?.publisher) {
+      app = await graphQuery(
+        `/deviceAppManagement/mobileApps/${id}?$select=id,displayName,publisher,description,createdDateTime,lastModifiedDateTime`,
+        `app:${id}`
+      );
+    }
+    // Fetch install summary (installed/failed/notInstalled counts)
+    try {
+      const summary = await graphQuery(
+        `/deviceAppManagement/mobileApps/${id}/installSummary`,
+        `app-summary:${id}`
+      );
+      app._summary = summary;
+    } catch { app._summary = null; }
+
+    // Fetch assignments (which groups it's assigned to)
+    try {
+      const assignments = await graphQuery(
+        `/deviceAppManagement/mobileApps/${id}/assignments`,
+        `app-assign:${id}`
+      );
+      app._assignments = assignments.value || [];
+    } catch { app._assignments = []; }
+
+    return app;
   }
 
   async function fetchPolicy(id) {
@@ -189,6 +250,57 @@
     const storage = d.totalStorageSpaceInBytes
       ? `${bytes(d.totalStorageSpaceInBytes - (d.freeStorageSpaceInBytes || 0))} / ${bytes(d.totalStorageSpaceInBytes)}`
       : null;
+
+    // Compliance policy summary
+    const cpols = d._compliancePolicies || [];
+    const cpOk = cpols.filter(p => p.state === 'compliant').length;
+    const cpBad = cpols.filter(p => p.state === 'nonCompliant').length;
+    const cpUnk = cpols.length - cpOk - cpBad;
+    const cpHtml = cpols.length > 0 ? `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Compliance Policies (${cpols.length})</div>
+          <div class="il-stats">
+            <div class="il-stat ok-bg"><span class="il-stat-n">${cpOk}</span><span class="il-stat-l">Compliant</span></div>
+            <div class="il-stat bad-bg"><span class="il-stat-n">${cpBad}</span><span class="il-stat-l">Non-compl.</span></div>
+            <div class="il-stat unk-bg"><span class="il-stat-n">${cpUnk}</span><span class="il-stat-l">Other</span></div>
+          </div>
+          ${cpBad > 0 ? cpols.filter(p => p.state === 'nonCompliant').map(p =>
+            `<div class="il-dev-item"><span class="il-dot bad"></span>${esc(p.displayName)}</div>`
+          ).join('') : ''}
+        </div>` : '';
+
+    // Config profiles summary
+    const cfgs = d._configProfiles || [];
+    const cfOk = cfgs.filter(p => p.state === 'compliant' || p.state === 'notApplicable').length;
+    const cfBad = cfgs.filter(p => p.state === 'error' || p.state === 'conflict' || p.state === 'nonCompliant').length;
+    const cfHtml = cfgs.length > 0 ? `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Config Profiles (${cfgs.length})</div>
+          <div class="il-stats">
+            <div class="il-stat ok-bg"><span class="il-stat-n">${cfOk}</span><span class="il-stat-l">OK</span></div>
+            <div class="il-stat bad-bg"><span class="il-stat-n">${cfBad}</span><span class="il-stat-l">Error</span></div>
+            <div class="il-stat unk-bg"><span class="il-stat-n">${cfgs.length - cfOk - cfBad}</span><span class="il-stat-l">Other</span></div>
+          </div>
+          ${cfBad > 0 ? cfgs.filter(p => ['error','conflict','nonCompliant'].includes(p.state)).slice(0, 3).map(p =>
+            `<div class="il-dev-item"><span class="il-dot bad"></span>${esc(p.displayName)}</div>`
+          ).join('') : ''}
+        </div>` : '';
+
+    // Groups
+    const groups = d._groups || [];
+    const grpHtml = groups.length > 0 ? `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Groups (${groups.length})</div>
+          ${groups.slice(0, 6).map(g => {
+            const isDynamic = g.groupTypes?.includes('DynamicMembership');
+            return `<div class="il-dev-item"><span class="il-dot unk"></span>${esc(g.displayName)} ${isDynamic ? '<span class="il-dev-os">dynamic</span>' : ''}</div>`;
+          }).join('')}
+          ${groups.length > 6 ? `<div class="il-dev-os">+${groups.length - 6} more…</div>` : ''}
+        </div>` : '';
+
     return `
       <div class="il-hdr">
         <span class="il-ico">💻</span>
@@ -203,9 +315,12 @@
           <div class="il-sec-ttl">Device Info</div>
           ${row('OS', `${d.operatingSystem || '—'} ${d.osVersion || ''}`)}
           ${row('Serial', d.serialNumber)}
+          ${row('Category', d.deviceCategoryDisplayName)}
           ${row('Encryption', d.isEncrypted ? '🔒 Encrypted' : '🔓 Not encrypted')}
           ${row('Management', d.managementAgent)}
           ${storage ? row('Storage', storage) : ''}
+          ${d.wiFiMacAddress ? row('Wi-Fi MAC', d.wiFiMacAddress) : ''}
+          ${d.ethernetMacAddress ? row('Ethernet MAC', d.ethernetMacAddress) : ''}
         </div>
         <hr class="il-div">
         <div class="il-sec">
@@ -215,6 +330,9 @@
           ${row('Enrolled', ago(d.enrolledDateTime))}
           ${row('Enrollment Type', d.deviceEnrollmentType)}
         </div>
+        ${cpHtml}
+        ${cfHtml}
+        ${grpHtml}
       </div>
       <div class="il-foot"><span class="il-tag">DEVICE</span><span class="il-brand">Intune Lens</span></div>`;
   }
@@ -249,7 +367,46 @@
 
   function appCard(a) {
     const desc = a.description
-      ? `<div class="il-desc">${esc(a.description.substring(0, 200))}${a.description.length > 200 ? '…' : ''}</div>` : '';
+      ? `<div class="il-desc">${esc(a.description.substring(0, 150))}${a.description.length > 150 ? '…' : ''}</div>` : '';
+
+    // Install summary stats
+    const s = a._summary;
+    const statsHtml = s ? `
+        <div class="il-sec">
+          <div class="il-sec-ttl">Install Status</div>
+          <div class="il-stats">
+            <div class="il-stat ok-bg"><span class="il-stat-n">${s.installedDeviceCount ?? 0}</span><span class="il-stat-l">Installed</span></div>
+            <div class="il-stat bad-bg"><span class="il-stat-n">${s.failedDeviceCount ?? 0}</span><span class="il-stat-l">Failed</span></div>
+            <div class="il-stat unk-bg"><span class="il-stat-n">${s.notInstalledDeviceCount ?? 0}</span><span class="il-stat-l">Not installed</span></div>
+            <div class="il-stat warn-bg"><span class="il-stat-n">${s.pendingInstallDeviceCount ?? 0}</span><span class="il-stat-l">Pending</span></div>
+          </div>
+        </div>
+        <hr class="il-div">` : '';
+
+    // Assignments
+    const assigns = (a._assignments || []).slice(0, 6);
+    const assignHtml = assigns.length > 0 ? `
+        <div class="il-sec">
+          <div class="il-sec-ttl">Assignments (${a._assignments.length})</div>
+          <div class="il-assign-list">${assigns.map(asg => {
+            const intent = asg.intent || 'unknown';
+            const intentMap = {
+              required: { cls: 'bad', icon: '🔴' },
+              available: { cls: 'ok', icon: '🟢' },
+              uninstall: { cls: 'unk', icon: '⚪' },
+              availableWithoutEnrollment: { cls: 'ok', icon: '🟡' }
+            };
+            const ic = intentMap[intent] || { cls: 'unk', icon: '⚫' };
+            const target = asg.target;
+            let groupName = 'All devices';
+            if (target?.groupId) groupName = target.groupId.substring(0, 8) + '…';
+            if (target?.['@odata.type']?.includes('allDevices')) groupName = 'All devices';
+            if (target?.['@odata.type']?.includes('allUsers')) groupName = 'All users';
+            if (target?.['@odata.type']?.includes('allLicensedUsers')) groupName = 'All licensed users';
+            return `<div class="il-assign-item"><span class="il-dot ${ic.cls}"></span><span>${esc(intent)}</span><span class="il-assign-target">${esc(groupName)}</span></div>`;
+          }).join('')}</div>
+        </div>` : '';
+
     return `
       <div class="il-hdr">
         <span class="il-ico">📱</span>
@@ -266,6 +423,9 @@
           ${row('Modified', ago(a.lastModifiedDateTime))}
           ${desc}
         </div>
+        <hr class="il-div">
+        ${statsHtml}
+        ${assignHtml}
       </div>
       <div class="il-foot"><span class="il-tag">APP</span><span class="il-brand">Intune Lens</span></div>`;
   }
@@ -806,7 +966,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.0.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.1.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
