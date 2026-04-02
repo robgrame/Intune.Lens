@@ -138,7 +138,7 @@
         );
         if (aadDevices.value?.[0]?.id) {
           const groups = await graphQuery(
-            `/devices/${aadDevices.value[0].id}/memberOf?$select=displayName,groupTypes&$top=10`,
+            `/devices/${aadDevices.value[0].id}/memberOf?$select=displayName,groupTypes&$top=50`,
             `dev-groups:${dev.azureADDeviceId}`
           );
           dev._groups = (groups.value || []).filter(g => g.displayName);
@@ -283,7 +283,7 @@
             <div class="il-stat bad-bg"><span class="il-stat-n">${cfBad}</span><span class="il-stat-l">Error</span></div>
             <div class="il-stat unk-bg"><span class="il-stat-n">${cfgs.length - cfOk - cfBad}</span><span class="il-stat-l">Other</span></div>
           </div>
-          ${cfBad > 0 ? cfgs.filter(p => ['error','conflict','nonCompliant'].includes(p.state)).slice(0, 3).map(p =>
+          ${cfBad > 0 ? cfgs.filter(p => ['error','conflict','nonCompliant'].includes(p.state)).map(p =>
             `<div class="il-dev-item"><span class="il-dot bad"></span>${esc(p.displayName)}</div>`
           ).join('') : ''}
         </div>` : '';
@@ -294,11 +294,10 @@
         <hr class="il-div">
         <div class="il-sec">
           <div class="il-sec-ttl">Groups (${groups.length})</div>
-          ${groups.slice(0, 6).map(g => {
+          ${groups.map(g => {
             const isDynamic = g.groupTypes?.includes('DynamicMembership');
             return `<div class="il-dev-item"><span class="il-dot unk"></span>${esc(g.displayName)} ${isDynamic ? '<span class="il-dev-os">dynamic</span>' : ''}</div>`;
           }).join('')}
-          ${groups.length > 6 ? `<div class="il-dev-os">+${groups.length - 6} more…</div>` : ''}
         </div>` : '';
 
     return `
@@ -384,7 +383,7 @@
         <hr class="il-div">` : '';
 
     // Assignments
-    const assigns = (a._assignments || []).slice(0, 6);
+    const assigns = (a._assignments || []);
     const assignHtml = assigns.length > 0 ? `
         <div class="il-sec">
           <div class="il-sec-ttl">Assignments (${a._assignments.length})</div>
@@ -966,7 +965,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.1.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.1.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
