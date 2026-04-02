@@ -147,19 +147,24 @@
     }
     if (!dev._groups) dev._groups = [];
 
-    // Managed app install states
+    // Managed app install states (beta API)
     try {
       const appStates = await graphQuery(
-        `/deviceManagement/managedDevices/${id}/mobileAppIntentAndStates`,
+        `/beta/deviceManagement/managedDevices/${id}/mobileAppIntentAndStates`,
         `dev-apps:${id}`
       );
       dev._apps = [];
-      for (const entry of (appStates.value || [])) {
+      const entries = appStates.value || [appStates];
+      for (const entry of entries) {
         for (const app of (entry.mobileAppList || [])) {
           dev._apps.push(app);
         }
       }
-    } catch { dev._apps = []; }
+      log(`📱 Device apps: ${dev._apps.length} managed apps`);
+    } catch (err) {
+      log(`📱 Device apps fetch failed: ${err.message}`);
+      dev._apps = [];
+    }
 
     return dev;
   }
@@ -1122,7 +1127,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.4.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.4.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
