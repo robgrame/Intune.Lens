@@ -514,9 +514,20 @@
 
     if (matched > 0) {
       log(`GridScan: matched ${matched} cells ✓`);
-    } else {
+    } else if (IS_BLADE && !scanGridCells._dumped) {
+      scanGridCells._dumped = true;
+      // Dump actual DOM text to see what's there
+      const samples = [];
+      for (let i = 0; i < all.length && samples.length < 30; i++) {
+        const el = all[i];
+        if (['SCRIPT','STYLE','HEAD','HTML','BODY','NOSCRIPT','BR','HR','SVG','PATH','LINK','META'].includes(el.tagName)) continue;
+        if (el.children.length > 2) continue;
+        const t = el.textContent?.trim();
+        if (t && t.length >= 3 && t.length < 150 && !samples.includes(t)) samples.push(t);
+      }
       const names = [...nameToObj.keys()].slice(0, 5);
       log('GridScan: 0 matches. Looking for:', names);
+      log('🔍 Actual DOM text in this blade (first 30 unique):', samples);
     }
   }
 
@@ -785,7 +796,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v1.9.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v1.9.2 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
