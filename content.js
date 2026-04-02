@@ -647,24 +647,20 @@
 
   let lastListFetchHash = '';
 
-  async function fetchListData() {
+  async function fetchListData(retryCount = 0) {
     try {
       const hash = location.hash || '';
-      log('fetchListData() hash:', hash.substring(0, 90));
-      if (hash === lastListFetchHash) { log('  → skipped (same hash)'); return; }
+      if (hash === lastListFetchHash && retryCount === 0) return;
 
-      let matched = false;
       for (const lp of LIST_PAGES) {
-        const hit = lp.re.test(hash);
-        if (!hit) continue;
-        matched = true;
-        lastListFetchHash = hash;
-        log(`📋 MATCH → ${lp.type} list page. Calling Graph…`);
+        if (!lp.re.test(hash)) continue;
+        log(`📋 MATCH → ${lp.type} list. Calling Graph…${retryCount ? ` (retry #${retryCount})` : ''}`);
 
         try {
           const data = await graphQuery(lp.endpoint, `list:${lp.type}:${hash}`);
+          lastListFetchHash = hash;
           const items = data.value || [];
-          log(`📋 Got ${items.length} ${lp.type}(s) from Graph`);
+          log(`📋 Got ${items.length} ${lp.type}(s) from Graph ✓`);
 
           for (const item of items) {
             objectCache.set(item.id, { ...item, _t: lp.type });
@@ -674,16 +670,21 @@
               nameToObj.set(item.userPrincipalName.toLowerCase().trim(), { id: item.id, type: lp.type });
           }
 
-          log(`📇 Lookup table: ${nameToObj.size} entries. Scheduling grid scans…`);
-          setTimeout(scanGridCells, 500);
-          setTimeout(scanGridCells, 2000);
-          setTimeout(scanGridCells, 5000);
+          log(`📇 Lookup table: ${nameToObj.size} entries. Scanning grid…`);
+          setTimeout(scanGridCells, 300);
+          setTimeout(scanGridCells, 1500);
+          setTimeout(scanGridCells, 4000);
         } catch (err) {
-          warn(`Graph call failed for ${lp.type}: ${err.message}`);
+          if (retryCount < 5 && /token|Token|expired|401/i.test(err.message)) {
+            const delay = (retryCount + 1) * 2000;
+            log(`⏳ Token not ready — retry #${retryCount + 1} in ${delay / 1000}s`);
+            setTimeout(() => fetchListData(retryCount + 1), delay);
+          } else {
+            warn(`Graph call failed for ${lp.type}: ${err.message}`);
+          }
         }
         return;
       }
-      if (!matched) log('  → no list-page pattern matched');
     } catch (outerErr) {
       warn('fetchListData() crashed:', outerErr.message);
     }
@@ -748,7 +749,7 @@
       console.log('[Intune Lens] Not on Intune portal — inactive.');
       return;
     }
-    log('🚀 Intune Lens v1.4.1 — Initializing on', location.href);
+    log('🚀 Intune Lens v1.5.0 — Initializing on', location.href);
     log('document.readyState =', document.readyState);
     loadSettings();
     setupBridge();
