@@ -1,0 +1,76 @@
+/* ============================================================
+   Intune Lens — Popup Styles
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  width: 300px;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  color: #323130;
+  background: #fff;
+}
+
+.p-root { padding: 0; }
+
+/* Header */
+.p-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #0078d4, #005a9e);
+  color: #fff;
+}
+.p-header h1 { font-size: 15px; font-weight: 600; }
+.p-status { font-size: 11px; opacity: .9; }
+.p-status.ok  { color: #a5f0a5; }
+.p-status.bad { color: #ffb0b0; }
+
+/* Sections */
+.p-section { padding: 12px 16px; border-bottom: 1px solid #edebe9; }
+.p-section h2 {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .5px; color: #605e5c; margin-bottom: 10px;
+}
+
+/* Toggle switch */
+.p-toggle {
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer; padding: 4px 0; user-select: none;
+}
+.p-toggle input { display: none; }
+.t-slider {
+  width: 36px; height: 20px; border-radius: 10px;
+  background: #c8c6c4; position: relative;
+  transition: background .2s;
+  flex-shrink: 0;
+}
+.t-slider::after {
+  content: '';
+  position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  transition: transform .2s;
+}
+.p-toggle input:checked + .t-slider { background: #0078d4; }
+.p-toggle input:checked + .t-slider::after { transform: translateX(16px); }
+.t-label { font-size: 13px; }
+
+/* Slider */
+.p-slider-row { display: flex; align-items: center; gap: 10px; }
+.p-slider-row input[type=range] { flex: 1; accent-color: #0078d4; }
+.p-slider-row span { font-size: 12px; color: #605e5c; min-width: 50px; text-align: right; }
+
+/* Actions */
+.p-actions { display: flex; }
+.p-btn {
+  flex: 1; padding: 8px; border: 1px solid #c8c6c4; border-radius: 6px;
+  background: #fff; cursor: pointer; font-size: 13px; color: #323130;
+  transition: background .15s, border-color .15s;
+}
+.p-btn:hover { background: #f3f2f1; border-color: #8a8886; }
+
+/* Footer */
+.p-footer {
+  padding: 10px 16px; text-align: center;
+  font-size: 10px; color: #a19f9d;
+}

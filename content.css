@@ -1,0 +1,163 @@
+/* ============================================================
+   Intune Lens — Hover Card Styles
+   Fluent-UI-inspired adaptive cards
+   ============================================================ */
+
+/* ---- Container ---- */
+#il-root {
+  position: absolute;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+}
+
+/* ---- Enhanced-link underline ---- */
+.il-link { position: relative; }
+.il-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #0078d4, #00bcf2);
+  opacity: 0;
+  transition: opacity .2s;
+  border-radius: 1px;
+}
+.il-link:hover::after { opacity: 1; }
+
+/* ---- Card shell ---- */
+.il-card {
+  position: absolute;
+  width: 380px;
+  max-height: 500px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.07);
+  border: 1px solid rgba(0,0,0,.08);
+  overflow: hidden;
+  overflow-y: auto;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #323130;
+  pointer-events: auto;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.il-enter { opacity: 0; transform: translateY(4px); }
+.il-exit  { opacity: 0; transform: translateY(-4px); pointer-events: none; }
+
+/* ---- Header ---- */
+.il-hdr {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+.il-ico { font-size: 28px; line-height: 1; flex-shrink: 0; }
+.il-ttl-grp { flex: 1; min-width: 0; }
+.il-ttl {
+  font-size: 15px; font-weight: 600; color: #201f1e;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.il-sub {
+  font-size: 12px; color: #605e5c; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---- Badges ---- */
+.il-badge {
+  flex-shrink: 0;
+  font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 12px; white-space: nowrap;
+}
+.il-badge.ok   { background: #dff6dd; color: #107c10; }
+.il-badge.bad  { background: #fde7e9; color: #d13438; }
+.il-badge.warn { background: #fff4ce; color: #986f0b; }
+.il-badge.unk  { background: #f3f2f1; color: #605e5c; }
+
+/* ---- Body / sections ---- */
+.il-body { padding: 4px 0; }
+.il-sec  { padding: 8px 16px; }
+.il-sec-ttl {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .5px; color: #605e5c; margin-bottom: 8px;
+}
+.il-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 0; gap: 12px;
+}
+.il-lbl { font-size: 12px; color: #8a8886; flex-shrink: 0; }
+.il-val {
+  font-size: 13px; color: #323130; text-align: right;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.il-div {
+  border: none; border-top: 1px solid rgba(0,0,0,.06);
+  margin: 4px 16px;
+}
+
+/* ---- Device list (inside user card) ---- */
+.il-dev-list { display: flex; flex-direction: column; gap: 4px; }
+.il-dev-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.il-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.il-dot.ok   { background: #107c10; }
+.il-dot.bad  { background: #d13438; }
+.il-dot.warn { background: #986f0b; }
+.il-dot.unk  { background: #8a8886; }
+.il-dev-os   { color: #8a8886; font-size: 11px; }
+
+/* ---- Description block ---- */
+.il-desc { font-size: 12px; color: #605e5c; margin-top: 8px; line-height: 1.6; }
+
+/* ---- Footer ---- */
+.il-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 16px; background: #faf9f8;
+  border-top: 1px solid rgba(0,0,0,.06);
+}
+.il-tag   { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #0078d4; }
+.il-brand { font-size: 10px; color: #a19f9d; }
+
+/* ---- Loading spinner ---- */
+.il-spin { animation: il-spin 1s linear infinite; display: inline-block; }
+@keyframes il-spin { to { transform: rotate(360deg); } }
+.il-bar {
+  height: 3px; border-radius: 2px; margin: 12px 16px;
+  background: linear-gradient(90deg, transparent, #0078d4, transparent);
+  background-size: 200% 100%;
+  animation: il-slide 1.5s ease infinite;
+}
+@keyframes il-slide { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* ---- Scrollbar ---- */
+.il-card::-webkit-scrollbar       { width: 6px; }
+.il-card::-webkit-scrollbar-track { background: transparent; }
+.il-card::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); border-radius: 3px; }
+.il-card::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.22); }
+
+/* ============================================================
+   Dark mode
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  .il-card {
+    background: #2d2d2d; color: #e0e0e0;
+    border-color: rgba(255,255,255,.1);
+    box-shadow: 0 8px 32px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.2);
+  }
+  .il-ttl      { color: #f0f0f0; }
+  .il-sub      { color: #a0a0a0; }
+  .il-sec-ttl  { color: #a0a0a0; }
+  .il-lbl      { color: #909090; }
+  .il-val      { color: #e0e0e0; }
+  .il-desc     { color: #a0a0a0; }
+  .il-div      { border-color: rgba(255,255,255,.1); }
+  .il-foot     { background: #252525; border-color: rgba(255,255,255,.1); }
+  .il-badge.ok   { background: #1a3a1a; color: #5dc75d; }
+  .il-badge.bad  { background: #3a1a1a; color: #f08080; }
+  .il-badge.warn { background: #3a3a1a; color: #ffd700; }
+  .il-badge.unk  { background: #3a3a3a; color: #a0a0a0; }
+  .il-card::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); }
+}

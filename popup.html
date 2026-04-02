@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="p-root">
+    <!-- Header -->
+    <div class="p-header">
+      <h1>🔍 Intune Lens</h1>
+      <span class="p-status" id="status">…</span>
+    </div>
+
+    <!-- Master toggle -->
+    <section class="p-section">
+      <label class="p-toggle">
+        <input type="checkbox" id="enabled" checked>
+        <span class="t-slider"></span>
+        <span class="t-label">Extension Enabled</span>
+      </label>
+    </section>
+
+    <!-- Card toggles -->
+    <section class="p-section">
+      <h2>Hover Cards</h2>
+      <label class="p-toggle"><input type="checkbox" id="showDeviceCards" checked><span class="t-slider"></span><span class="t-label">💻 Devices</span></label>
+      <label class="p-toggle"><input type="checkbox" id="showUserCards"   checked><span class="t-slider"></span><span class="t-label">👤 Users</span></label>
+      <label class="p-toggle"><input type="checkbox" id="showAppCards"    checked><span class="t-slider"></span><span class="t-label">📱 Apps</span></label>
+      <label class="p-toggle"><input type="checkbox" id="showPolicyCards" checked><span class="t-slider"></span><span class="t-label">📋 Policies</span></label>
+    </section>
+
+    <!-- Hover delay -->
+    <section class="p-section">
+      <h2>Hover Delay</h2>
+      <div class="p-slider-row">
+        <input type="range" id="hoverDelay" min="100" max="1500" step="100" value="400">
+        <span id="hoverDelayVal">400 ms</span>
+      </div>
+    </section>
+
+    <!-- Actions -->
+    <section class="p-section p-actions">
+      <button id="clearCache" class="p-btn">🗑️ Clear Cache</button>
+    </section>
+
+    <footer class="p-footer">v1.0.0 · Made for Intune admins</footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
