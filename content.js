@@ -540,7 +540,6 @@
       log('🔍 DOM textContent (leaf):', samples.slice(0, 20));
     }
   }
-  }
 
   // ==========================================================
   // FAB — Floating Action Button for current-page detection
