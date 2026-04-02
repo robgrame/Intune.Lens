@@ -115,6 +115,7 @@ async function handleGraphQuery(endpoint, cacheKey) {
   } else {
     url = `https://graph.microsoft.com/v1.0${endpoint}`;
   }
+  console.log('[IL-SW] Graph call:', url.substring(0, 150));
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${authToken}` }
   });
@@ -124,7 +125,10 @@ async function handleGraphQuery(endpoint, cacheKey) {
       await chrome.storage.session.remove(['authToken', 'tokenTimestamp']);
       throw new Error('Token expired — refresh the Intune portal page.');
     }
-    throw new Error(`Graph ${res.status}: ${res.statusText}`);
+    // Log response body for debugging 400 errors
+    let errBody = '';
+    try { errBody = await res.text(); } catch {}
+    throw new Error(`Graph ${res.status}: ${errBody.substring(0, 200)}`);
   }
 
   const data = await res.json();

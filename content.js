@@ -1125,7 +1125,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.4.2 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.4.3 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
