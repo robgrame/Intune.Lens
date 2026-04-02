@@ -11,7 +11,7 @@
   const TAG = '%c[IL-inject]';
   const CSS = 'color:#0078d4;font-weight:bold';
 
-  console.log(TAG, CSS, '🔑 Token + data interceptor loaded in MAIN world');
+  console.log(TAG, CSS, '🔑 Token + data interceptor loaded in MAIN world (v1.2.0)');
 
   // --- Token relay ---
   let relayCount = 0;
