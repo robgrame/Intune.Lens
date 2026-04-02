@@ -147,20 +147,35 @@
     }
     if (!dev._groups) dev._groups = [];
 
-    // Managed app install states (beta API, requires user context)
-    if (dev.userPrincipalName) {
+    // Managed app install states — try multiple approaches
+    dev._apps = [];
+    // Approach 1: beta managedAppDiagnostics (v1.0 detectedApps for installed apps)
+    try {
+      const detected = await graphQuery(
+        `/deviceManagement/managedDevices/${id}/detectedApps?$select=displayName,version,sizeInByte&$top=100`,
+        `dev-detected:${id}`
+      );
+      const apps = (detected.value || []).map(a => ({
+        displayName: a.displayName,
+        displayVersion: a.version,
+        installState: 'installed'
+      }));
+      // Now get app statuses from beta to find failures
       try {
-        const endpoint = `/beta/users/${encodeURIComponent(dev.userPrincipalName)}/mobileAppIntentAndStates/${id}`;
-        log(`📱 Calling: ${endpoint}`);
-        const appState = await graphQuery(endpoint, `dev-apps:${id}`);
-        dev._apps = appState.mobileAppList || [];
-        log(`📱 Device apps: ${dev._apps.length} managed apps`);
-      } catch (err) {
-        log(`📱 Device apps FAILED: ${err.message}`);
-        dev._apps = [];
-      }
-    } else {
-      dev._apps = [];
+        const statuses = await graphQuery(
+          `/beta/deviceManagement/managedDevices/${id}/managedDeviceAppConfigurationStates`,
+          `dev-appstatus:${id}`
+        );
+        for (const s of (statuses.value || [])) {
+          if (s.state === 'error' || s.state === 'failed') {
+            apps.push({ displayName: s.displayName, installState: 'failed', displayVersion: s.version || '' });
+          }
+        }
+      } catch { /* optional */ }
+      dev._apps = apps;
+      log(`📱 Device apps: ${apps.length} (${apps.filter(a => a.installState === 'installed').length} installed, ${apps.filter(a => a.installState === 'failed').length} failed)`);
+    } catch (err) {
+      log(`📱 Device apps: ${err.message}`);
     }
 
     return dev;
@@ -1124,7 +1139,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.4.4 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.5.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
