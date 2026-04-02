@@ -457,53 +457,52 @@
   }
 
   // ==========================================================
-  // Grid cell scan — match visible text against known objects
-  // captured from intercepted Graph responses
+  // Grid cell scan — match visible text against known objects.
+  // Scans ALL leaf elements since Intune doesn't use standard
+  // ARIA grid roles.
   // ==========================================================
   function scanGridCells() {
-    if (nameToObj.size === 0) return;
-    if (!settings.enabled) return;
+    if (nameToObj.size === 0 || !settings.enabled) return;
 
-    // Fluent UI DetailsList uses role="gridcell" for cells
-    // Also scan role="link" elements and general list items
-    const cells = document.querySelectorAll(
-      `[role="gridcell"]:not([${PROCESSED}]),
-       [role="link"]:not([${PROCESSED}]),
-       [data-automationid="DetailsRowCell"]:not([${PROCESSED}]),
-       [data-automationid="ListCell"]:not([${PROCESSED}])`
-    );
-
+    const all = document.body.getElementsByTagName('*');
     let matched = 0;
-    for (const cell of cells) {
-      // Get the direct text content (first meaningful text node)
-      const text = getCleanText(cell);
+
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i];
+      if (el.hasAttribute(PROCESSED)) continue;
+      const tag = el.tagName;
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'HEAD' || tag === 'HTML' || tag === 'BODY' || tag === 'NOSCRIPT') continue;
+
+      // Try title attribute first (Fluent UI often sets it)
+      let text = el.getAttribute('title')?.trim();
+
+      if (!text) {
+        // For leaf-ish elements only, check textContent
+        if (el.children.length > 2) continue;
+        text = el.textContent?.trim();
+      }
+
       if (!text || text.length < 2 || text.length > 200) continue;
 
-      const key = text.toLowerCase().trim();
-      const obj = nameToObj.get(key);
+      const obj = nameToObj.get(text.toLowerCase());
       if (!obj) continue;
 
-      cell.setAttribute(PROCESSED, obj.type);
-      cell.setAttribute(ID_ATTR, obj.id);
-      cell.classList.add('il-link');
-      cell.style.cursor = 'pointer';
-      cell.addEventListener('mouseenter', onEnter);
-      cell.addEventListener('mouseleave', onLeave);
+      el.setAttribute(PROCESSED, obj.type);
+      el.setAttribute(ID_ATTR, obj.id);
+      el.classList.add('il-link');
+      el.style.cursor = 'pointer';
+      el.addEventListener('mouseenter', onEnter);
+      el.addEventListener('mouseleave', onLeave);
       matched++;
     }
 
-    if (matched > 0) log(`GridScan: matched ${matched} cells to known objects`);
-  }
-
-  // Extract clean text from an element (first text-like content)
-  function getCleanText(el) {
-    // If the element has a title attribute, prefer that
-    const title = el.getAttribute('title');
-    if (title) return title.trim();
-
-    // Try textContent but skip if it has too many child elements (likely a row container)
-    if (el.children.length > 3) return null;
-    return el.textContent?.trim() || null;
+    if (matched > 0) {
+      log(`GridScan: matched ${matched} cells ✓`);
+    } else {
+      // Debug: show what names we're looking for vs what's on the page
+      const names = [...nameToObj.keys()].slice(0, 5);
+      log('GridScan: 0 matches. Looking for:', names);
+    }
   }
 
   // ==========================================================
@@ -749,7 +748,7 @@
       console.log('[Intune Lens] Not on Intune portal — inactive.');
       return;
     }
-    log('🚀 Intune Lens v1.5.0 — Initializing on', location.href);
+    log('🚀 Intune Lens v1.6.0 — Initializing on', location.href);
     log('document.readyState =', document.readyState);
     loadSettings();
     setupBridge();
