@@ -138,7 +138,7 @@
         );
         if (aadDevices.value?.[0]?.id) {
           const groups = await graphQuery(
-            `/devices/${aadDevices.value[0].id}/memberOf?$select=displayName,groupTypes&$top=50`,
+            `/devices/${aadDevices.value[0].id}/transitiveMemberOf/microsoft.graph.group?$select=displayName,groupTypes&$top=999`,
             `dev-groups:${dev.azureADDeviceId}`
           );
           dev._groups = (groups.value || []).filter(g => g.displayName);
@@ -965,7 +965,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.1.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.1.2 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
