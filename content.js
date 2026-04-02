@@ -1012,6 +1012,16 @@
     { re: /Apps(Windows)?Menu/i,
       endpoint: `/deviceAppManagement/mobileApps?$select=id,displayName,publisher,description,createdDateTime,lastModifiedDateTime&$top=50`,
       type: 'app', nameField: 'displayName' },
+    // Configuration profiles & compliance policies
+    { re: /DevicesMenu.*\/configuration/i,
+      endpoint: `/deviceManagement/deviceConfigurations?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
+      type: 'policy', nameField: 'displayName' },
+    { re: /DevicesMenu.*\/compliancePolicy/i,
+      endpoint: `/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
+      type: 'policy', nameField: 'displayName' },
+    { re: /SecurityManagementMenu/i,
+      endpoint: `/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
+      type: 'policy', nameField: 'displayName' },
   ];
 
   let lastListFetchHash = '';
@@ -1140,7 +1150,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.5.2 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.5.3 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
