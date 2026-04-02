@@ -150,14 +150,13 @@
     // Managed app install states (beta API, requires user context)
     if (dev.userPrincipalName) {
       try {
-        const appState = await graphQuery(
-          `/beta/users/${encodeURIComponent(dev.userPrincipalName)}/mobileAppIntentAndStates/${id}`,
-          `dev-apps:${id}`
-        );
+        const endpoint = `/beta/users/${encodeURIComponent(dev.userPrincipalName)}/mobileAppIntentAndStates/${id}`;
+        log(`📱 Calling: ${endpoint}`);
+        const appState = await graphQuery(endpoint, `dev-apps:${id}`);
         dev._apps = appState.mobileAppList || [];
         log(`📱 Device apps: ${dev._apps.length} managed apps`);
       } catch (err) {
-        log(`📱 Device apps: ${err.message}`);
+        log(`📱 Device apps FAILED: ${err.message}`);
         dev._apps = [];
       }
     } else {
@@ -1125,7 +1124,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.4.3 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.4.4 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
