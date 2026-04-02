@@ -744,13 +744,20 @@
   // Bootstrap
   // ==========================================================
   const IS_MAIN = location.hostname.includes('intune.microsoft.com');
-  const IS_BLADE = location.hostname.includes('hosting.portal.azure.net');
+  const IS_BLADE = location.hostname.includes('hosting.portal.azure.net')
+                || location.hostname.includes('portal.azure.net')
+                || location.hostname.includes('portal.azure.com');
 
   function init() {
-    if (!IS_MAIN && !IS_BLADE) return;
+    // Log even on unrecognized hosts for debugging
+    if (!IS_MAIN && !IS_BLADE) {
+      console.log('%c[IL]', 'color:#0078d4;font-weight:bold',
+        `👀 Loaded on unrecognized host: ${location.hostname} — ${location.href.substring(0, 100)}`);
+      return;
+    }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v1.7.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v1.7.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
@@ -764,6 +771,15 @@
         });
       }, 3000);
       setTimeout(() => { scan(); updateFab(); fetchListData(); }, 2000);
+
+      // Diagnostic: dump all iframe URLs
+      setTimeout(() => {
+        const iframes = document.querySelectorAll('iframe');
+        log(`🖼️ Found ${iframes.length} iframes:`);
+        iframes.forEach((f, i) => {
+          log(`  iframe[${i}]: src="${f.src?.substring(0, 120) || '(empty)'}" name="${f.name || ''}"`)
+        });
+      }, 4000);
     }
 
     if (IS_BLADE) {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Intune Lens",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Rich hover cards for Microsoft Intune objects — see device details, user info, compliance status, and more at a glance.",
   "permissions": [
     "storage",
@@ -29,7 +29,10 @@
     {
       "matches": [
         "https://intune.microsoft.com/*",
-        "https://hosting.portal.azure.net/*"
+        "https://*.hosting.portal.azure.net/*",
+        "https://hosting.portal.azure.net/*",
+        "https://*.portal.azure.net/*",
+        "https://*.portal.azure.com/*"
       ],
       "js": [
         "content.js"
