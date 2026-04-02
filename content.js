@@ -648,36 +648,44 @@
   let lastListFetchHash = '';
 
   async function fetchListData() {
-    const hash = location.hash || '';
-    if (hash === lastListFetchHash) return;
+    try {
+      const hash = location.hash || '';
+      log('fetchListData() hash:', hash.substring(0, 90));
+      if (hash === lastListFetchHash) { log('  → skipped (same hash)'); return; }
 
-    for (const lp of LIST_PAGES) {
-      if (!lp.re.test(hash)) continue;
-      lastListFetchHash = hash;
-      log(`📋 List page detected (${lp.type}). Fetching from Graph…`);
+      let matched = false;
+      for (const lp of LIST_PAGES) {
+        const hit = lp.re.test(hash);
+        if (!hit) continue;
+        matched = true;
+        lastListFetchHash = hash;
+        log(`📋 MATCH → ${lp.type} list page. Calling Graph…`);
 
-      try {
-        const data = await graphQuery(lp.endpoint, `list:${lp.type}:${hash}`);
-        const items = data.value || [];
-        log(`📋 Got ${items.length} ${lp.type}(s) from Graph`);
+        try {
+          const data = await graphQuery(lp.endpoint, `list:${lp.type}:${hash}`);
+          const items = data.value || [];
+          log(`📋 Got ${items.length} ${lp.type}(s) from Graph`);
 
-        for (const item of items) {
-          objectCache.set(item.id, { ...item, _t: lp.type });
-          const name = item[lp.nameField] || item.displayName;
-          if (name) nameToObj.set(name.toLowerCase().trim(), { id: item.id, type: lp.type });
-          if (item.userPrincipalName)
-            nameToObj.set(item.userPrincipalName.toLowerCase().trim(), { id: item.id, type: lp.type });
+          for (const item of items) {
+            objectCache.set(item.id, { ...item, _t: lp.type });
+            const name = item[lp.nameField] || item.displayName;
+            if (name) nameToObj.set(name.toLowerCase().trim(), { id: item.id, type: lp.type });
+            if (item.userPrincipalName)
+              nameToObj.set(item.userPrincipalName.toLowerCase().trim(), { id: item.id, type: lp.type });
+          }
+
+          log(`📇 Lookup table: ${nameToObj.size} entries. Scheduling grid scans…`);
+          setTimeout(scanGridCells, 500);
+          setTimeout(scanGridCells, 2000);
+          setTimeout(scanGridCells, 5000);
+        } catch (err) {
+          warn(`Graph call failed for ${lp.type}: ${err.message}`);
         }
-
-        log(`📇 Lookup table: ${nameToObj.size} entries`);
-        // Wait a moment for DOM to settle then scan
-        setTimeout(scanGridCells, 500);
-        setTimeout(scanGridCells, 2000); // re-scan after virtual scroll loads
-        setTimeout(scanGridCells, 5000); // one more for late renders
-      } catch (err) {
-        warn(`Failed to fetch ${lp.type} list: ${err.message}`);
+        return;
       }
-      return;
+      if (!matched) log('  → no list-page pattern matched');
+    } catch (outerErr) {
+      warn('fetchListData() crashed:', outerErr.message);
     }
   }
 
@@ -740,7 +748,7 @@
       console.log('[Intune Lens] Not on Intune portal — inactive.');
       return;
     }
-    log('🚀 Intune Lens v1.4.0 — Initializing on', location.href);
+    log('🚀 Intune Lens v1.4.1 — Initializing on', location.href);
     log('document.readyState =', document.readyState);
     loadSettings();
     setupBridge();
