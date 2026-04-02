@@ -1,142 +1,204 @@
 # 🔍 Intune Lens
 
-A browser extension (Edge / Chrome) that adds **rich hover cards** to the Microsoft Intune portal. Hover over any device, user, app, or policy link and instantly see detailed information — powered by Microsoft Graph.
+> Rich hover cards for the Microsoft Intune admin center — see device details, compliance, primary user, and more without clicking.
 
-## ✨ Features
+<p align="center">
+  <img src="https://img.shields.io/badge/manifest-v3-blue" alt="Manifest V3" />
+  <img src="https://img.shields.io/badge/edge-%E2%9C%93-green" alt="Edge" />
+  <img src="https://img.shields.io/badge/chrome-%E2%9C%93-green" alt="Chrome" />
+  <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT" />
+  <img src="https://img.shields.io/badge/build-no%20build%20step-brightgreen" alt="No build step" />
+</p>
+
+---
+
+## The Problem
+
+Managing devices in Intune means **endless clicking** — open a device, wait for the blade to load, check compliance, go back, repeat. There's no quick way to glance at device health, primary user, or last check-in without leaving the list view.
+
+## The Solution
+
+**Intune Lens** adds Adaptive-Card-style hover cards directly into the Intune portal. Hover over a device name in any list view and instantly see:
 
 | Object | Card shows |
 |--------|-----------|
-| 💻 **Device** | Name, OS & version, model, serial, compliance state, encryption, primary user, last check-in, enrollment date, storage |
-| 👤 **User** | Display name, UPN, job title, department, office, phone, account status, managed devices list with compliance dots |
+| 💻 **Device** | Name, OS & version, model, serial number, compliance state, encryption status, management agent, primary user, last check-in, enrollment date, storage usage |
+| 👤 **User** | Display name, UPN, job title, department, office, phone, account status, list of managed devices with compliance indicators |
 | 📱 **App** | Name, publisher, description, created / modified dates |
 | 📋 **Policy** | Name, version, description, created / modified dates |
 
-### Additional highlights
+### Highlights
 
-- **Zero infrastructure** — no backend server; the extension reuses the token from your active Intune session
-- **Automatic token capture** — intercepts the bearer token that the Intune SPA already sends to `graph.microsoft.com`
-- **5-minute response cache** — fast repeat hovers without hammering Graph
-- **Dark mode** — follows system preference
-- **Configurable** — toggle card types on/off, adjust hover delay
+- **Zero infrastructure** — no backend server, no Azure Functions, no App Registration. The extension reuses the token from your active Intune session.
+- **Works inside Intune's iframes** — the portal renders content inside sandboxed React blade iframes; Intune Lens injects into those frames automatically.
+- **5-minute response cache** — fast repeat hovers without extra Graph calls.
+- **Dark mode** — follows your system preference.
+- **Configurable** — toggle card types on/off, adjust hover delay via the popup.
+
+---
+
+## 📦 Installation
+
+No store listing yet — sideload the extension in developer mode.
+
+### Microsoft Edge (recommended)
+
+1. Clone this repo or download the ZIP
+2. Open **`edge://extensions/`**
+3. Enable **Developer mode** (bottom-left toggle)
+4. Click **Load unpacked** → select the `Intune.Lens` folder
+5. Navigate to [intune.microsoft.com](https://intune.microsoft.com) and start hovering!
+
+### Google Chrome
+
+1. Open **`chrome://extensions/`**
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** → select the `Intune.Lens` folder
+
+> **Note:** After updating the extension files, click the 🔄 button on the extension card **and** refresh the Intune tab (F5).
+
+---
 
 ## 🏗️ Architecture
 
+The Intune admin center is an Azure-portal-based SPA that renders blade content inside **cross-origin sandboxed iframes** (`sandbox-*.reactblade.portal.azure.net`) and makes Graph API calls from **Web Workers**. This makes traditional DOM scraping and fetch interception ineffective. Intune Lens works around these constraints:
+
 ```
-┌── intune.microsoft.com ──────────────────────────────┐
+┌─ intune.microsoft.com (main frame) ──────────────────┐
 │                                                       │
-│  inject.js (page context)                             │
-│     ↓  intercepts fetch/XHR → captures Bearer token   │
-│     ↓  window.postMessage                             │
+│  inject.js (MAIN world, document_start)               │
+│     • monkey-patches fetch/XHR for token capture      │
+│     • intercepts Response.prototype.json for data     │
 │                                                       │
-│  content.js (content script)                          │
-│     • MutationObserver → detects device/user/… links  │
-│     • mouseenter → shows hover card                   │
-│     • relays token to service worker                  │
-│     ↕  chrome.runtime.sendMessage                     │
+│  content.js (ISOLATED world)                          │
+│     • URL-based list-page detection                   │
+│     • FAB (floating action button) on detail pages    │
+│     • relays captured tokens to service worker        │
 │                                                       │
-│  background.js (service worker)                       │
-│     • stores token in chrome.storage.session          │
-│     • makes Graph API calls                           │
-│     • caches responses (Map, 5 min TTL)               │
+├─ sandbox-*.reactblade.portal.azure.net (blade iframe) │
 │                                                       │
-│  popup.html/js/css (extension popup)                  │
-│     • toggle cards on/off                             │
-│     • adjust hover delay                              │
-│     • clear cache, view token status                  │
+│  content.js (ISOLATED world, all_frames)              │
+│     • fetches device/user list via Graph API           │
+│     • scans all leaf DOM elements for name matching   │
+│     • renders hover cards on mouseenter               │
+│     • MutationObserver for virtual-scroll re-renders  │
+│                                                       │
+├─ background.js (service worker) ─────────────────────┤
+│  • webRequest.onSendHeaders → captures Bearer token   │
+│  • chrome.storage.session → volatile token storage    │
+│  • Graph API proxy with 5-min TTL cache (Map)         │
+│  • message hub for all content script instances       │
 └───────────────────────────────────────────────────────┘
 ```
 
-## 📦 Installation (sideload)
+### Token capture
 
-### Edge
+The extension captures the Bearer token that Intune already uses for its own Graph API calls — **no App Registration or admin consent required**.
 
-1. Open `edge://extensions/`
-2. Enable **Developer mode** (toggle in bottom-left)
-3. Click **Load unpacked**
-4. Select the `Intune.Lens` folder
-5. Navigate to [intune.microsoft.com](https://intune.microsoft.com) and start hovering!
+| Method | Where | How |
+|--------|-------|-----|
+| `webRequest.onSendHeaders` | Service worker | Reads `Authorization` header from Graph requests (primary) |
+| `inject.js` fetch wrapper | Main frame (MAIN world) | Monkey-patches `window.fetch` to relay tokens via `postMessage` (fallback) |
 
-### Chrome
+The token is stored in `chrome.storage.session` (volatile — cleared on browser restart). **No tokens are ever sent to external servers.**
 
-1. Open `chrome://extensions/`
-2. Enable **Developer mode** (toggle in top-right)
-3. Click **Load unpacked**
-4. Select the `Intune.Lens` folder
+### Data flow for hover cards
 
-## 🔑 How token capture works
+1. Content script detects a list page (e.g. `~/allDevices`) via URL hash pattern
+2. Sends `graphQuery` message to service worker → `GET /deviceManagement/managedDevices?$top=50`
+3. Service worker uses captured token, calls Graph, caches response
+4. Content script builds a `name → { id, type }` lookup table
+5. `scanGridCells()` iterates all leaf DOM elements, matches `textContent` against known names
+6. Matched elements get hover handlers → `mouseenter` triggers card fetch & render
+7. Cards use cached data when available; otherwise make a per-object Graph call
 
-The Intune portal is a React SPA that calls `graph.microsoft.com` using a bearer token obtained via MSAL. Intune Lens captures this token in two complementary ways:
-
-1. **`inject.js`** — injected into the page context, monkey-patches `fetch()` and `XMLHttpRequest.setRequestHeader()` to intercept the `Authorization` header on Graph calls, then relays the token via `window.postMessage`.
-2. **`background.js`** — uses `chrome.webRequest.onSendHeaders` as a fallback to read the header directly from outbound requests.
-
-The captured token is stored in `chrome.storage.session` (volatile — cleared on browser restart). **No tokens are ever sent to external servers.**
+---
 
 ## ⚙️ Configuration
 
-Click the extension icon in the toolbar to open settings:
+Click the Intune Lens icon in the browser toolbar:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Extension Enabled | ✓ | Master on/off |
-| Device cards | ✓ | Show cards on device links |
-| User cards | ✓ | Show cards on user links |
-| App cards | ✓ | Show cards on app links |
-| Policy cards | ✓ | Show cards on policy links |
-| Hover delay | 400 ms | Time before the card appears |
+| Extension Enabled | ✓ | Master on/off toggle |
+| Device cards | ✓ | Show hover cards on device names |
+| User cards | ✓ | Show hover cards on user names |
+| App cards | ✓ | Show hover cards on app names |
+| Policy cards | ✓ | Show hover cards on policy names |
+| Hover delay | 400 ms | Delay before the card appears (100–1500 ms) |
 
-## 🔒 Permissions explained
+---
+
+## 🔒 Permissions
 
 | Permission | Why |
 |-----------|-----|
-| `storage` | Save settings and session token |
+| `storage` | Persist user settings; store session token |
 | `webRequest` | Observe Graph API requests to capture the auth token |
-| `host_permissions: intune.microsoft.com` | Inject content scripts into the Intune portal |
-| `host_permissions: graph.microsoft.com` | Make Graph API calls from the service worker |
+| `intune.microsoft.com` | Inject content scripts + token interceptor |
+| `graph.microsoft.com` | Make Graph API calls from the service worker |
+| `hosting.portal.azure.net` | Inject content scripts into Intune blade iframes |
+| `*.reactblade.portal.azure.net` | Inject content scripts into sandbox blade iframes |
+
+---
 
 ## 🛠️ Development
 
 ```bash
-# No build step required — pure vanilla JS/CSS
-# Edit files, then reload the extension in edge://extensions/
+# No build step — pure vanilla JS/CSS
+git clone https://github.com/robgrame/Intune.Lens.git
+# Load the folder as an unpacked extension
+# Edit → reload extension → refresh Intune tab
 ```
 
-### File structure
+### Project structure
 
 ```
 Intune.Lens/
-├── manifest.json    # MV3 extension manifest
-├── background.js    # Service worker (Graph API + cache + token)
-├── inject.js        # Page-context token interceptor
-├── content.js       # DOM detection + hover cards
-├── content.css      # Card styles (light + dark)
-├── popup.html       # Settings UI
-├── popup.js         # Settings logic
-├── popup.css        # Settings styles
-└── README.md        # This file
+├── manifest.json     # MV3 extension manifest
+├── background.js     # Service worker — Graph API proxy, token, cache
+├── inject.js         # Page-context token + data interceptor (MAIN world)
+├── content.js        # DOM detection + hover cards (main frame + blade iframes)
+├── content.css       # Fluent-UI-inspired card styles (light + dark)
+├── popup.html        # Settings popup
+├── popup.js          # Settings logic
+├── popup.css         # Popup styles
+├── icon{16,48,128}.png
+└── README.md
 ```
 
-### Adding icons
+### Debugging
 
-Place PNG icons in the project root and add to `manifest.json`:
+Open DevTools (F12) on the Intune tab and filter the console by **`[IL]`**:
 
-```json
-"icons": {
-  "16": "icon16.png",
-  "48": "icon48.png",
-  "128": "icon128.png"
-}
 ```
+[IL] 🚀 Intune Lens v1.8.0 — Main frame on intune.microsoft.com/...
+[IL] 🚀 Intune Lens v1.8.0 — Blade iframe on sandbox-2.reactblade.portal.azure.net/...
+[IL] 📋 MATCH → device list. Calling Graph…
+[IL] 📋 Got 12 device(s) from Graph ✓
+[IL] 📇 Lookup table: 14 entries. Scanning grid…
+[IL] GridScan: matched 74 cells ✓
+[IL] Hover → device a1b2c3d4-...
+```
+
+---
 
 ## 📋 Roadmap
 
-- [ ] Group membership card for devices
+- [ ] Group membership list in device cards
 - [ ] Configuration profile assignment status
 - [ ] App installation status per device
-- [ ] Keyboard shortcut to pin a card
-- [ ] Export card data to clipboard
-- [ ] Custom icons
+- [ ] Keyboard shortcut to pin/dismiss cards
+- [ ] Export card data to clipboard (JSON / Markdown)
+- [ ] Support for compliance policy detail pages
+- [ ] Chrome Web Store / Edge Add-ons listing
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please open an issue first to discuss what you'd like to change.
 
 ## 📄 License
 
-MIT
+[MIT](LICENSE)
