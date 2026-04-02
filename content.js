@@ -743,34 +743,86 @@
   // ==========================================================
   // Bootstrap
   // ==========================================================
+  const IS_MAIN = location.hostname.includes('intune.microsoft.com');
+  const IS_BLADE = location.hostname.includes('hosting.portal.azure.net');
+
   function init() {
-    if (!location.hostname.includes('intune.microsoft.com')) {
-      console.log('[Intune Lens] Not on Intune portal — inactive.');
+    if (!IS_MAIN && !IS_BLADE) return;
+
+    const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
+    log(`🚀 Intune Lens v1.7.0 — ${mode} on`, location.href.substring(0, 100));
+    loadSettings();
+    ensureContainer();
+
+    if (IS_MAIN) {
+      setupBridge();
+      setupObserver();
+      setTimeout(() => {
+        chrome.runtime.sendMessage({ type: 'getStatus' }, (r) => {
+          if (r?.hasToken) log('✅ Token available, cache size:', r.cacheSize);
+          else warn('⚠ No token yet');
+        });
+      }, 3000);
+      setTimeout(() => { scan(); updateFab(); fetchListData(); }, 2000);
+    }
+
+    if (IS_BLADE) {
+      // Blade iframe: independent data fetch + DOM scan
+      setupBladeObserver();
+      setTimeout(() => fetchBladeData(), 3000);
+    }
+
+    log('✅ Ready.');
+  }
+
+  // ==========================================================
+  // Blade iframe mode — fetch devices and scan this frame's DOM
+  // ==========================================================
+  async function fetchBladeData(retryCount = 0) {
+    if (nameToObj.size > 0 && retryCount === 0) {
+      log('🔲 Blade: already have data, scanning…');
+      scanGridCells();
       return;
     }
-    log('🚀 Intune Lens v1.6.0 — Initializing on', location.href);
-    log('document.readyState =', document.readyState);
-    loadSettings();
-    setupBridge();
-    ensureContainer();
-    setupObserver();
 
-    // Check token status after a short delay
-    setTimeout(() => {
-      chrome.runtime.sendMessage({ type: 'getStatus' }, (r) => {
-        if (r?.hasToken) {
-          log('✅ Token available, cache size:', r.cacheSize);
-        } else {
-          warn('⚠ No token yet — navigate around Intune to trigger Graph calls');
-        }
-      });
-    }, 3000);
+    log(`🔲 Blade: fetching devices…${retryCount ? ` (retry #${retryCount})` : ''}`);
+    try {
+      const data = await graphQuery(
+        `/deviceManagement/managedDevices?$select=${DEVICE_SELECT}&$top=50&$orderby=deviceName`,
+        'list:device:blade'
+      );
+      const items = data.value || [];
+      log(`🔲 Blade: got ${items.length} devices ✓`);
 
-    // Initial scan + FAB + list data fetch after page settles
-    setTimeout(() => { log('Running initial scan…'); scan(); updateFab(); fetchListData(); }, 2000);
+      for (const item of items) {
+        objectCache.set(item.id, { ...item, _t: 'device' });
+        if (item.deviceName)
+          nameToObj.set(item.deviceName.toLowerCase().trim(), { id: item.id, type: 'device' });
+        if (item.userPrincipalName)
+          nameToObj.set(item.userPrincipalName.toLowerCase().trim(), { id: item.id, type: 'device' });
+      }
 
-    log('✅ Ready — hover over Intune object links to see details.');
-    log('💡 Filter console by "[IL]" to see only Intune Lens messages.');
+      log(`🔲 Blade: lookup ${nameToObj.size} entries. Scanning DOM…`);
+      scanGridCells();
+      setTimeout(scanGridCells, 1500);
+      setTimeout(scanGridCells, 4000);
+    } catch (err) {
+      if (retryCount < 8 && /token|Token|expired|401/i.test(err.message)) {
+        const delay = (retryCount + 1) * 2000;
+        log(`⏳ Token not ready — retry #${retryCount + 1} in ${delay / 1000}s`);
+        setTimeout(() => fetchBladeData(retryCount + 1), delay);
+      } else {
+        warn(`Blade Graph failed: ${err.message}`);
+      }
+    }
+  }
+
+  function setupBladeObserver() {
+    let bladeTimer = null;
+    new MutationObserver(() => {
+      clearTimeout(bladeTimer);
+      bladeTimer = setTimeout(scanGridCells, 600);
+    }).observe(document.body, { childList: true, subtree: true });
   }
 
   document.readyState === 'loading'

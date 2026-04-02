@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Intune Lens",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Rich hover cards for Microsoft Intune objects — see device details, user info, compliance status, and more at a glance.",
   "permissions": [
     "storage",
@@ -9,7 +9,8 @@
   ],
   "host_permissions": [
     "https://intune.microsoft.com/*",
-    "https://graph.microsoft.com/*"
+    "https://graph.microsoft.com/*",
+    "https://hosting.portal.azure.net/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -27,7 +28,8 @@
     },
     {
       "matches": [
-        "https://intune.microsoft.com/*"
+        "https://intune.microsoft.com/*",
+        "https://hosting.portal.azure.net/*"
       ],
       "js": [
         "content.js"
@@ -35,7 +37,8 @@
       "css": [
         "content.css"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
   "action": {
