@@ -9,14 +9,17 @@
 
   const GRAPH = 'graph.microsoft.com';
   const MSG_TYPE = '__INTUNE_LENS_TOKEN__';
-  const origin = window.location.origin;
 
   console.log('%c[IL-inject]', 'color:#0078d4;font-weight:bold', '🔑 Token interceptor loaded in MAIN world');
 
+  let relayCount = 0;
   function relay(token) {
     if (token) {
-      window.postMessage({ type: MSG_TYPE, token }, origin);
-      console.log('%c[IL-inject]', 'color:#0078d4;font-weight:bold', '🔑 Token captured and relayed');
+      window.postMessage({ type: MSG_TYPE, token }, '*');
+      relayCount++;
+      if (relayCount <= 3) {
+        console.log('%c[IL-inject]', 'color:#0078d4;font-weight:bold', `🔑 Token captured and relayed (#${relayCount})`);
+      }
     }
   }
 

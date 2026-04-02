@@ -58,7 +58,7 @@
         chrome.runtime.sendMessage({ type: 'setToken', token: e.data.token });
       }
     });
-    log('Token bridge listener active');
+    log('Token bridge listener ready');
   }
 
   // ==========================================================
@@ -359,25 +359,26 @@
   // ==========================================================
   // DOM detection — find Intune object links
   // ==========================================================
-  function detect(el) {
-    // Check href attribute
-    const href = el.getAttribute('href') || '';
-    if (href) {
-      for (const p of ROUTE_PATTERNS) {
-        const m = href.match(p.re);
-        if (m) return { type: p.type, id: m[1] };
-      }
+  function detectFromText(text) {
+    if (!text) return null;
+    for (const p of ROUTE_PATTERNS) {
+      const m = text.match(p.re);
+      if (m) return { type: p.type, id: m[1] };
     }
+    return null;
+  }
 
-    // Check onclick / data attributes that may contain GUIDs + route info
-    const onClick = el.getAttribute('onclick') || '';
-    const dataHref = el.getAttribute('data-href') || el.getAttribute('data-url') || '';
-    for (const text of [onClick, dataHref]) {
-      if (!text) continue;
-      for (const p of ROUTE_PATTERNS) {
-        const m = text.match(p.re);
-        if (m) return { type: p.type, id: m[1] };
-      }
+  function detect(el) {
+    // 1. href
+    const href = el.getAttribute('href') || '';
+    const r = detectFromText(href);
+    if (r) return r;
+
+    // 2. data-* and aria attributes
+    for (const attr of el.attributes) {
+      if (['class', 'style', 'id', PROCESSED, ID_ATTR].includes(attr.name)) continue;
+      const r2 = detectFromText(attr.value);
+      if (r2) return r2;
     }
 
     return null;
@@ -386,9 +387,14 @@
   function scan() {
     if (!settings.enabled) return;
 
-    // Broad selector: any <a> with an href, plus any element with data-href
+    // Very broad selector: links, clickable roles, table rows, anything with data-* GUID
     const candidates = document.querySelectorAll(
-      `a[href]:not([${PROCESSED}]), [data-href]:not([${PROCESSED}])`
+      `a[href]:not([${PROCESSED}]),
+       [role="link"]:not([${PROCESSED}]),
+       [role="row"]:not([${PROCESSED}]),
+       [role="gridcell"]:not([${PROCESSED}]),
+       [data-href]:not([${PROCESSED}]),
+       [data-automationid]:not([${PROCESSED}])`
     );
 
     let found = 0;
@@ -406,19 +412,123 @@
       found++;
     }
 
-    if (found > 0) log(`Scan: found ${found} new object links`);
+    if (found > 0) log(`Scan: tagged ${found} new object elements`);
 
-    // Also log all <a> hrefs for debugging (first scan only)
-    if (!scan._debugDone) {
-      scan._debugDone = true;
-      const allLinks = document.querySelectorAll('a[href]');
-      const hrefs = [...allLinks].map(a => a.getAttribute('href')).filter(Boolean);
-      log(`Page has ${allLinks.length} total <a> links. Sample hrefs:`, hrefs.slice(0, 20));
+    // Debug: dump DOM info on first scan
+    if (!scan._dbg) {
+      scan._dbg = true;
+      const allA = document.querySelectorAll('a[href]');
+      const sampleHrefs = [...allA].slice(0, 30).map(a => a.getAttribute('href'));
+      log(`DOM has ${allA.length} <a> tags. Sample hrefs:`, sampleHrefs);
+      log('Hash:', location.hash);
+      log('Pathname:', location.pathname);
 
-      // Also check the current URL hash
-      log('Current URL hash:', window.location.hash);
-      log('Current full URL:', window.location.href);
+      // Dump unique role values to help find clickable elements
+      const roles = new Set();
+      document.querySelectorAll('[role]').forEach(el => roles.add(el.getAttribute('role')));
+      log('ARIA roles found on page:', [...roles]);
     }
+  }
+
+  // ==========================================================
+  // FAB — Floating Action Button for current-page detection
+  // Parses the URL hash to detect objects on detail pages.
+  // This works regardless of DOM structure.
+  // ==========================================================
+  let currentFab = null;
+  let lastFabHash = '';
+
+  const FAB_PATTERNS = [
+    { type: 'device', re: /mdmDeviceId\/([0-9a-f-]{36})/i,           icon: '💻', label: 'Device' },
+    { type: 'user',   re: /userId\/([0-9a-f-]{36})/i,                 icon: '👤', label: 'User' },
+    { type: 'app',    re: /appId\/([0-9a-f-]{36})/i,                  icon: '📱', label: 'App' },
+    { type: 'policy', re: /policyId\/([0-9a-f-]{36})/i,               icon: '📋', label: 'Policy' },
+    { type: 'policy', re: /configurationId\/([0-9a-f-]{36})/i,        icon: '📋', label: 'Policy' },
+    { type: 'device', re: /DeviceSettingsMenuBlade[^]*?([0-9a-f-]{36})/i, icon: '💻', label: 'Device' },
+    { type: 'user',   re: /UserProfileMenuBlade[^]*?([0-9a-f-]{36})/i,    icon: '👤', label: 'User' },
+    { type: 'app',    re: /MobileAppMenuBlade[^]*?([0-9a-f-]{36})/i,      icon: '📱', label: 'App' },
+  ];
+
+  function updateFab() {
+    const hash = location.hash || '';
+    if (hash === lastFabHash) return;
+    lastFabHash = hash;
+
+    // Remove old FAB
+    if (currentFab) { currentFab.remove(); currentFab = null; }
+
+    if (!settings.enabled) return;
+
+    // Try to detect object from URL
+    for (const p of FAB_PATTERNS) {
+      const m = hash.match(p.re);
+      if (!m) continue;
+
+      const id = m[1];
+      log(`FAB: detected ${p.type} ${id} from URL hash`);
+
+      const fab = document.createElement('div');
+      fab.id = 'il-fab';
+      fab.innerHTML = `<span class="il-fab-icon">${p.icon}</span><span class="il-fab-text">🔍 ${p.label} Info</span>`;
+      fab.title = `Show ${p.label} details (Intune Lens)`;
+      fab.addEventListener('click', () => {
+        log(`FAB clicked → showing ${p.type} card for ${id}`);
+        showCardFixed(p.type, id);
+      });
+      document.body.appendChild(fab);
+      currentFab = fab;
+      return;
+    }
+
+    log('FAB: no object detected in URL hash:', hash.substring(0, 120));
+  }
+
+  // Show card at a fixed position (for FAB clicks)
+  function showCardFixed(type, id) {
+    hideImmediate();
+    const container = ensureContainer();
+    const card = document.createElement('div');
+    card.className = 'il-card il-enter il-card-fixed';
+    card.innerHTML = loadingCard(type);
+
+    // Fixed position: right side, vertically centered
+    card.style.position = 'fixed';
+    card.style.right = '20px';
+    card.style.top = '80px';
+    card.style.left = 'auto';
+
+    container.appendChild(card);
+    currentCard = card;
+
+    // Close button
+    const close = document.createElement('button');
+    close.className = 'il-close';
+    close.innerHTML = '✕';
+    close.title = 'Close';
+    close.addEventListener('click', (e) => { e.stopPropagation(); hideImmediate(); });
+    card.prepend(close);
+
+    card.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+    card.addEventListener('mouseleave', scheduleHide);
+    requestAnimationFrame(() => card.classList.remove('il-enter'));
+
+    // Fetch & render
+    (async () => {
+      try {
+        const fetchers = { device: fetchDevice, user: fetchUser, app: fetchApp, policy: fetchPolicy };
+        const renderers = { device: deviceCard, user: userCard, app: appCard, policy: policyCard };
+        const data = await fetchers[type](id);
+        if (card === currentCard) {
+          card.innerHTML = renderers[type](data);
+          card.prepend(close);  // re-add close button after innerHTML replace
+        }
+      } catch (err) {
+        if (card === currentCard) {
+          card.innerHTML = errorCard(err.message);
+          card.prepend(close);
+        }
+      }
+    })();
   }
 
   function onEnter(e) {
@@ -451,10 +561,26 @@
     }).observe(document.body, { childList: true, subtree: true });
 
     window.addEventListener('hashchange', () => {
+      log('Hash changed →', location.hash.substring(0, 100));
       hideImmediate();
+      updateFab();
       clearTimeout(scanTimer);
+      scan._dbg = false; // re-dump debug on new page
       scanTimer = setTimeout(scan, SCAN_DEBOUNCE);
     });
+
+    // Also poll for URL changes (some SPAs don't fire hashchange)
+    let lastUrl = location.href;
+    setInterval(() => {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        log('URL changed (poll) →', location.href.substring(0, 120));
+        updateFab();
+        clearTimeout(scanTimer);
+        scan._dbg = false;
+        scanTimer = setTimeout(scan, SCAN_DEBOUNCE);
+      }
+    }, 1000);
   }
 
   // ==========================================================
@@ -498,8 +624,8 @@
       });
     }, 3000);
 
-    // Initial scan after page settles
-    setTimeout(() => { log('Running initial scan…'); scan(); }, 2000);
+    // Initial scan + FAB after page settles
+    setTimeout(() => { log('Running initial scan…'); scan(); updateFab(); }, 2000);
 
     log('✅ Ready — hover over Intune object links to see details.');
     log('💡 Filter console by "[IL]" to see only Intune Lens messages.');
