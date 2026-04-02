@@ -97,7 +97,7 @@
   // Data fetchers
   // ==========================================================
   const DEVICE_SELECT = [
-    'deviceName','operatingSystem','osVersion','model','manufacturer',
+    'id','deviceName','operatingSystem','osVersion','model','manufacturer',
     'serialNumber','lastSyncDateTime','complianceState','enrolledDateTime',
     'userPrincipalName','managementAgent','deviceEnrollmentType',
     'isEncrypted','isSupervised','totalStorageSpaceInBytes','freeStorageSpaceInBytes'
@@ -757,7 +757,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v1.7.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v1.8.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
