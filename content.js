@@ -458,9 +458,26 @@
 
   // ==========================================================
   // Grid cell scan — match visible text against known objects.
-  // Scans ALL leaf elements since Intune doesn't use standard
-  // ARIA grid roles.
+  // Uses exact match first, then partial match for long names
+  // (app names are often truncated in the portal).
   // ==========================================================
+  function findMatch(text) {
+    const lower = text.toLowerCase().trim();
+    if (!lower || lower.length < 2) return null;
+
+    // 1. Exact match (fast)
+    const exact = nameToObj.get(lower);
+    if (exact) return exact;
+
+    // 2. Partial: known name starts with this text, or this text starts with a known name
+    if (lower.length >= 4) {
+      for (const [name, obj] of nameToObj) {
+        if (name.startsWith(lower) || lower.startsWith(name)) return obj;
+      }
+    }
+    return null;
+  }
+
   function scanGridCells() {
     if (nameToObj.size === 0 || !settings.enabled) return;
 
@@ -477,14 +494,13 @@
       let text = el.getAttribute('title')?.trim();
 
       if (!text) {
-        // For leaf-ish elements only, check textContent
         if (el.children.length > 2) continue;
         text = el.textContent?.trim();
       }
 
-      if (!text || text.length < 2 || text.length > 200) continue;
+      if (!text || text.length < 2 || text.length > 300) continue;
 
-      const obj = nameToObj.get(text.toLowerCase());
+      const obj = findMatch(text);
       if (!obj) continue;
 
       el.setAttribute(PROCESSED, obj.type);
@@ -499,7 +515,6 @@
     if (matched > 0) {
       log(`GridScan: matched ${matched} cells ✓`);
     } else {
-      // Debug: show what names we're looking for vs what's on the page
       const names = [...nameToObj.keys()].slice(0, 5);
       log('GridScan: 0 matches. Looking for:', names);
     }
@@ -770,7 +785,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v1.9.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v1.9.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
