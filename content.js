@@ -493,7 +493,7 @@
 
     // Position relative to anchor
     const rect = anchor.getBoundingClientRect();
-    const W = 380, MARGIN = 8;
+    const W = 400, MARGIN = 8;
     let left = rect.left + window.scrollX;
     let top  = rect.bottom + window.scrollY + MARGIN;
 
@@ -510,23 +510,85 @@
     hideImmediate();
     container.appendChild(card);
     currentCard = card;
+    card._pinned = false;
 
     card.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-    card.addEventListener('mouseleave', scheduleHide);
+    card.addEventListener('mouseleave', () => { if (!card._pinned) scheduleHide(); });
 
     requestAnimationFrame(() => card.classList.remove('il-enter'));
 
-    // Fetch & render
+    // Fetch & render, then add controls
     (async () => {
       try {
         const fetchers = { device: fetchDevice, user: fetchUser, app: fetchApp, policy: fetchPolicy };
         const renderers = { device: deviceCard, user: userCard, app: appCard, policy: policyCard };
         const data = await fetchers[type](id);
-        if (card === currentCard) card.innerHTML = renderers[type](data);
+        if (card === currentCard) {
+          card.innerHTML = renderers[type](data);
+          addCardControls(card);
+        }
       } catch (err) {
-        if (card === currentCard) card.innerHTML = errorCard(err.message);
+        if (card === currentCard) {
+          card.innerHTML = errorCard(err.message);
+          addCardControls(card);
+        }
       }
     })();
+  }
+
+  // Add close button + drag + pin to a rendered card
+  function addCardControls(card) {
+    const bar = document.createElement('div');
+    bar.className = 'il-toolbar';
+    bar.innerHTML = `
+      <span class="il-pin" title="Pin card (keep open)">📌</span>
+      <span class="il-drag-hint">⠿</span>
+      <span class="il-close" title="Close card">✕</span>
+    `;
+    card.prepend(bar);
+
+    // Close
+    bar.querySelector('.il-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideImmediate();
+    });
+
+    // Pin toggle
+    const pinBtn = bar.querySelector('.il-pin');
+    pinBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      card._pinned = !card._pinned;
+      card.classList.toggle('il-pinned', card._pinned);
+      pinBtn.textContent = card._pinned ? '📍' : '📌';
+      pinBtn.title = card._pinned ? 'Unpin card' : 'Pin card (keep open)';
+    });
+
+    // Drag via toolbar
+    let dragX = 0, dragY = 0, startLeft = 0, startTop = 0, dragging = false;
+
+    bar.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.il-close') || e.target.closest('.il-pin')) return;
+      e.preventDefault();
+      dragging = true;
+      card._pinned = true;
+      card.classList.add('il-pinned');
+      pinBtn.textContent = '📍';
+      dragX = e.clientX;
+      dragY = e.clientY;
+      startLeft = parseInt(card.style.left) || 0;
+      startTop  = parseInt(card.style.top)  || 0;
+      card.classList.add('il-dragging');
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      card.style.left = `${startLeft + e.clientX - dragX}px`;
+      card.style.top  = `${startTop  + e.clientY - dragY}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (dragging) { dragging = false; card.classList.remove('il-dragging'); }
+    });
   }
 
   function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(hideImmediate, 300); }
@@ -965,7 +1027,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.1.2 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.2.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
