@@ -47,18 +47,35 @@
   let hoverTimer  = null;
   let hideTimer   = null;
 
+  // Object data captured from Graph responses (inject.js → here)
+  const objectCache = new Map();  // id → full object
+  const nameToObj   = new Map();  // lowercase name/upn → { id, type }
+
   // ==========================================================
-  // Token bridge — inject.js runs in MAIN world via manifest,
-  // we just listen for its postMessage here
+  // Bridge: tokens + intercepted Graph data from inject.js
   // ==========================================================
-  function setupTokenBridge() {
+  function setupBridge() {
     window.addEventListener('message', (e) => {
       if (e.data?.type === '__INTUNE_LENS_TOKEN__') {
         log('Token captured from page ✓');
         chrome.runtime.sendMessage({ type: 'setToken', token: e.data.token });
       }
+      if (e.data?.type === '__INTUNE_LENS_DATA__') {
+        const objs = e.data.objects || [];
+        log(`📦 Received ${objs.length} objects from page intercept`);
+        for (const obj of objs) {
+          objectCache.set(obj.id, obj);
+          const type = obj._t;
+          if (obj.deviceName)         nameToObj.set(obj.deviceName.toLowerCase().trim(), { id: obj.id, type });
+          if (obj.displayName)        nameToObj.set(obj.displayName.toLowerCase().trim(), { id: obj.id, type });
+          if (obj.userPrincipalName)  nameToObj.set(obj.userPrincipalName.toLowerCase().trim(), { id: obj.id, type });
+        }
+        log(`📇 Lookup table now has ${nameToObj.size} entries`);
+        // Trigger a grid scan now that we have data to match
+        scanGridCells();
+      }
     });
-    log('Token bridge listener ready');
+    log('Bridge listener ready (tokens + data)');
   }
 
   // ==========================================================
@@ -87,14 +104,19 @@
   ].join(',');
 
   async function fetchDevice(id) {
+    const cached = objectCache.get(id);
+    if (cached?.deviceName) return cached;
     return graphQuery(`/deviceManagement/managedDevices/${id}?$select=${DEVICE_SELECT}`, `dev:${id}`);
   }
 
   async function fetchUser(id) {
-    const user = await graphQuery(
-      `/users/${id}?$select=displayName,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,mail,accountEnabled,createdDateTime`,
-      `usr:${id}`
-    );
+    let user = objectCache.get(id);
+    if (!user?.userPrincipalName) {
+      user = await graphQuery(
+        `/users/${id}?$select=displayName,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,mail,accountEnabled,createdDateTime`,
+        `usr:${id}`
+      );
+    }
     try {
       const devs = await graphQuery(
         `/users/${id}/managedDevices?$select=deviceName,operatingSystem,complianceState&$top=10`,
@@ -106,6 +128,8 @@
   }
 
   async function fetchApp(id) {
+    const cached = objectCache.get(id);
+    if (cached?.publisher !== undefined) return cached;
     return graphQuery(
       `/deviceAppManagement/mobileApps/${id}?$select=displayName,publisher,description,createdDateTime,lastModifiedDateTime`,
       `app:${id}`
@@ -414,6 +438,9 @@
 
     if (found > 0) log(`Scan: tagged ${found} new object elements`);
 
+    // Also run grid-cell scan (name-based matching)
+    scanGridCells();
+
     // Debug: dump DOM info on first scan
     if (!scan._dbg) {
       scan._dbg = true;
@@ -423,11 +450,60 @@
       log('Hash:', location.hash);
       log('Pathname:', location.pathname);
 
-      // Dump unique role values to help find clickable elements
       const roles = new Set();
       document.querySelectorAll('[role]').forEach(el => roles.add(el.getAttribute('role')));
       log('ARIA roles found on page:', [...roles]);
     }
+  }
+
+  // ==========================================================
+  // Grid cell scan — match visible text against known objects
+  // captured from intercepted Graph responses
+  // ==========================================================
+  function scanGridCells() {
+    if (nameToObj.size === 0) return;
+    if (!settings.enabled) return;
+
+    // Fluent UI DetailsList uses role="gridcell" for cells
+    // Also scan role="link" elements and general list items
+    const cells = document.querySelectorAll(
+      `[role="gridcell"]:not([${PROCESSED}]),
+       [role="link"]:not([${PROCESSED}]),
+       [data-automationid="DetailsRowCell"]:not([${PROCESSED}]),
+       [data-automationid="ListCell"]:not([${PROCESSED}])`
+    );
+
+    let matched = 0;
+    for (const cell of cells) {
+      // Get the direct text content (first meaningful text node)
+      const text = getCleanText(cell);
+      if (!text || text.length < 2 || text.length > 200) continue;
+
+      const key = text.toLowerCase().trim();
+      const obj = nameToObj.get(key);
+      if (!obj) continue;
+
+      cell.setAttribute(PROCESSED, obj.type);
+      cell.setAttribute(ID_ATTR, obj.id);
+      cell.classList.add('il-link');
+      cell.style.cursor = 'pointer';
+      cell.addEventListener('mouseenter', onEnter);
+      cell.addEventListener('mouseleave', onLeave);
+      matched++;
+    }
+
+    if (matched > 0) log(`GridScan: matched ${matched} cells to known objects`);
+  }
+
+  // Extract clean text from an element (first text-like content)
+  function getCleanText(el) {
+    // If the element has a title attribute, prefer that
+    const title = el.getAttribute('title');
+    if (title) return title.trim();
+
+    // Try textContent but skip if it has too many child elements (likely a row container)
+    if (el.children.length > 3) return null;
+    return el.textContent?.trim() || null;
   }
 
   // ==========================================================
@@ -609,7 +685,7 @@
     log('🚀 Initializing on', location.href);
     log('document.readyState =', document.readyState);
     loadSettings();
-    setupTokenBridge();
+    setupBridge();
     ensureContainer();
     setupObserver();
 
