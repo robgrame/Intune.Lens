@@ -533,13 +533,6 @@
         if (pin) { pin.textContent = '📍'; pin.title = 'Unpin card'; }
       }
     }, { passive: true });
-    // Prevent page scroll when wheeling inside the card
-    card.addEventListener('wheel', (e) => {
-      const { scrollTop, scrollHeight, clientHeight } = card;
-      const atTop = scrollTop === 0 && e.deltaY < 0;
-      const atBottom = scrollTop + clientHeight >= scrollHeight - 1 && e.deltaY > 0;
-      if (!atTop && !atBottom) e.preventDefault();
-    }, { passive: false });
 
     requestAnimationFrame(() => card.classList.remove('il-enter'));
 
@@ -1058,7 +1051,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.3.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.3.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
