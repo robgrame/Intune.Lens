@@ -513,8 +513,15 @@
     currentCard = card;
     card._pinned = false;
 
-    card.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-    card.addEventListener('mouseleave', () => { if (!card._pinned) scheduleHide(); });
+    card.addEventListener('mouseenter', () => {
+      log('🟢 Card mouseenter');
+      clearTimeout(hideTimer);
+    });
+    card.addEventListener('mouseleave', (e) => {
+      log('🔴 Card mouseleave → relatedTarget:', e.relatedTarget?.tagName, e.relatedTarget?.className?.substring?.(0, 40));
+      if (!card._pinned) scheduleHide();
+    });
+    card.addEventListener('wheel', () => log('🔵 Card wheel'), { passive: true });
     // Auto-pin on scroll (user is reading content)
     card.addEventListener('scroll', () => {
       if (!card._pinned) {
@@ -608,10 +615,11 @@
     });
   }
 
-  function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(hideImmediate, 600); }
+  function scheduleHide() { log('⏱️ scheduleHide (600ms)'); clearTimeout(hideTimer); hideTimer = setTimeout(hideImmediate, 600); }
 
   function hideImmediate() {
     if (!currentCard) return;
+    log('❌ hideImmediate — closing card. Pinned:', currentCard._pinned);
     currentCard.classList.add('il-exit');
     const ref = currentCard;
     setTimeout(() => ref.remove(), 200);
@@ -894,6 +902,7 @@
   }
 
   function onLeave() {
+    log('🟠 Anchor mouseleave');
     clearTimeout(hoverTimer);
     scheduleHide();
   }
@@ -1044,7 +1053,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.2.2 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.2.3 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
