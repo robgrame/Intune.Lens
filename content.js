@@ -230,17 +230,67 @@
   }
 
   async function fetchPolicy(id) {
+    let pol = null;
+    let polType = 'unknown';
+
+    // Try compliance policy first, then device configuration
     try {
-      return await graphQuery(
-        `/deviceManagement/deviceCompliancePolicies/${id}?$select=displayName,description,createdDateTime,lastModifiedDateTime,version`,
+      pol = await graphQuery(
+        `/deviceManagement/deviceCompliancePolicies/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version`,
         `pol:${id}`
       );
+      polType = 'Compliance Policy';
     } catch {
-      return graphQuery(
-        `/deviceManagement/deviceConfigurations/${id}?$select=displayName,description,createdDateTime,lastModifiedDateTime,version`,
-        `pol:${id}`
-      );
+      try {
+        pol = await graphQuery(
+          `/deviceManagement/deviceConfigurations/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version`,
+          `pol:${id}`
+        );
+        polType = 'Configuration Profile';
+      } catch {
+        // Try beta groupPolicyConfigurations (Admin Templates)
+        try {
+          pol = await graphQuery(
+            `/beta/deviceManagement/groupPolicyConfigurations/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime`,
+            `pol:${id}`
+          );
+          polType = 'Admin Template';
+        } catch {
+          throw new Error('Policy not found');
+        }
+      }
     }
+
+    pol._polType = polType;
+
+    // Device status summary
+    const summaryEndpoints = [
+      `/deviceManagement/deviceCompliancePolicies/${id}/deviceStatusOverview`,
+      `/deviceManagement/deviceConfigurations/${id}/deviceStatusOverview`,
+    ];
+    for (const ep of summaryEndpoints) {
+      try {
+        pol._statusOverview = await graphQuery(ep, `pol-overview:${id}`);
+        break;
+      } catch { /* try next */ }
+    }
+    if (!pol._statusOverview) pol._statusOverview = null;
+
+    // Assignments (groups, exclusions, filters)
+    const assignEndpoints = [
+      `/deviceManagement/deviceCompliancePolicies/${id}/assignments`,
+      `/deviceManagement/deviceConfigurations/${id}/assignments`,
+    ];
+    pol._assignments = [];
+    for (const ep of assignEndpoints) {
+      try {
+        const a = await graphQuery(ep, `pol-assign:${id}`);
+        pol._assignments = a.value || [];
+        break;
+      } catch { /* try next */ }
+    }
+
+    return pol;
   }
 
   // ==========================================================
@@ -521,21 +571,74 @@
   function policyCard(p) {
     const desc = p.description
       ? `<div class="il-desc">${esc(p.description.substring(0, 300))}${p.description.length > 300 ? '…' : ''}</div>` : '';
+
+    // Status overview stats
+    const ov = p._statusOverview;
+    const statsHtml = ov ? `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Device Status</div>
+          <div class="il-stats">
+            <div class="il-stat ok-bg"><span class="il-stat-n">${ov.successCount ?? ov.compliantDeviceCount ?? 0}</span><span class="il-stat-l">Success</span></div>
+            <div class="il-stat bad-bg"><span class="il-stat-n">${ov.failedCount ?? ov.nonCompliantDeviceCount ?? 0}</span><span class="il-stat-l">Failed</span></div>
+            <div class="il-stat bad-bg"><span class="il-stat-n">${ov.errorCount ?? ov.errorDeviceCount ?? 0}</span><span class="il-stat-l">Error</span></div>
+            <div class="il-stat warn-bg"><span class="il-stat-n">${ov.conflictCount ?? ov.conflictDeviceCount ?? 0}</span><span class="il-stat-l">Conflict</span></div>
+            <div class="il-stat unk-bg"><span class="il-stat-n">${ov.notApplicableCount ?? ov.notApplicableDeviceCount ?? 0}</span><span class="il-stat-l">N/A</span></div>
+          </div>
+          ${ov.lastUpdateDateTime ? `<div class="il-row"><span class="il-lbl">Last report</span><span class="il-val">${esc(ago(ov.lastUpdateDateTime))}</span></div>` : ''}
+        </div>` : '';
+
+    // Assignments
+    const assigns = p._assignments || [];
+    const included = assigns.filter(a => !a.target?.['@odata.type']?.includes('exclusion'));
+    const excluded = assigns.filter(a => a.target?.['@odata.type']?.includes('exclusion'));
+
+    function assignTarget(a) {
+      const t = a.target || {};
+      const type = t['@odata.type'] || '';
+      if (type.includes('allDevices')) return '🖥️ All devices';
+      if (type.includes('allLicensedUsers')) return '👥 All licensed users';
+      if (type.includes('allUsers')) return '👥 All users';
+      const gid = t.groupId ? t.groupId.substring(0, 8) + '…' : '';
+      const filter = t.deviceAndAppManagementAssignmentFilterId
+        ? ` 🔽 filter: ${t.deviceAndAppManagementAssignmentFilterType || 'include'}`
+        : '';
+      return `${gid}${filter}`;
+    }
+
+    const inclHtml = included.length > 0 ? `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Included (${included.length})</div>
+          ${included.map(a => `<div class="il-dev-item"><span class="il-dot ok"></span>${esc(assignTarget(a))}</div>`).join('')}
+        </div>` : '';
+
+    const exclHtml = excluded.length > 0 ? `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Excluded (${excluded.length})</div>
+          ${excluded.map(a => `<div class="il-dev-item"><span class="il-dot bad"></span>${esc(assignTarget(a))}</div>`).join('')}
+        </div>` : '';
+
     return `
       <div class="il-hdr">
         <span class="il-ico">📋</span>
         <div class="il-ttl-grp">
           <div class="il-ttl">${esc(p.displayName)}</div>
-          <div class="il-sub">Version ${p.version ?? '—'}</div>
+          <div class="il-sub">${esc(p._polType || '')}${p.version ? ` · v${p.version}` : ''}</div>
         </div>
       </div>
       <div class="il-body">
         <div class="il-sec">
           <div class="il-sec-ttl">Policy Info</div>
+          ${row('Type', p._polType)}
           ${row('Created', ago(p.createdDateTime))}
           ${row('Modified', ago(p.lastModifiedDateTime))}
           ${desc}
         </div>
+        ${statsHtml}
+        ${inclHtml}
+        ${exclHtml}
       </div>
       <div class="il-foot"><span class="il-tag">POLICY</span><span class="il-brand">Intune Lens</span></div>`;
   }
@@ -1150,7 +1253,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.5.3 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.6.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
