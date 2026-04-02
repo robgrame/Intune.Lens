@@ -15,6 +15,11 @@
   const GUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
   const GUID_RE = new RegExp(GUID, 'i');
 
+  // Debug logging — check browser console filtered by "[IL]"
+  const DEBUG = true;
+  function log(...args) { if (DEBUG) console.log('%c[IL]', 'color:#0078d4;font-weight:bold', ...args); }
+  function warn(...args) { if (DEBUG) console.warn('%c[IL]', 'color:#d83b01;font-weight:bold', ...args); }
+
   // Intune hash-route patterns → object type
   const ROUTE_PATTERNS = [
     { type: 'device', re: new RegExp(`mdmDeviceId/(${GUID})`, 'i') },
@@ -43,20 +48,17 @@
   let hideTimer   = null;
 
   // ==========================================================
-  // Token bridge — inject page-level script
+  // Token bridge — inject.js runs in MAIN world via manifest,
+  // we just listen for its postMessage here
   // ==========================================================
   function setupTokenBridge() {
-    const s = document.createElement('script');
-    s.src = chrome.runtime.getURL('inject.js');
-    s.onload = () => s.remove();
-    (document.head || document.documentElement).appendChild(s);
-
     window.addEventListener('message', (e) => {
-      if (e.origin !== location.origin) return;
       if (e.data?.type === '__INTUNE_LENS_TOKEN__') {
+        log('Token captured from page ✓');
         chrome.runtime.sendMessage({ type: 'setToken', token: e.data.token });
       }
     });
+    log('Token bridge listener active');
   }
 
   // ==========================================================
@@ -358,37 +360,76 @@
   // DOM detection — find Intune object links
   // ==========================================================
   function detect(el) {
+    // Check href attribute
     const href = el.getAttribute('href') || '';
-    for (const p of ROUTE_PATTERNS) {
-      const m = href.match(p.re);
-      if (m) return { type: p.type, id: m[1] };
+    if (href) {
+      for (const p of ROUTE_PATTERNS) {
+        const m = href.match(p.re);
+        if (m) return { type: p.type, id: m[1] };
+      }
     }
+
+    // Check onclick / data attributes that may contain GUIDs + route info
+    const onClick = el.getAttribute('onclick') || '';
+    const dataHref = el.getAttribute('data-href') || el.getAttribute('data-url') || '';
+    for (const text of [onClick, dataHref]) {
+      if (!text) continue;
+      for (const p of ROUTE_PATTERNS) {
+        const m = text.match(p.re);
+        if (m) return { type: p.type, id: m[1] };
+      }
+    }
+
     return null;
   }
 
   function scan() {
     if (!settings.enabled) return;
-    const links = document.querySelectorAll(`a[href*="#"]:not([${PROCESSED}])`);
-    for (const a of links) {
-      const obj = detect(a);
+
+    // Broad selector: any <a> with an href, plus any element with data-href
+    const candidates = document.querySelectorAll(
+      `a[href]:not([${PROCESSED}]), [data-href]:not([${PROCESSED}])`
+    );
+
+    let found = 0;
+    for (const el of candidates) {
+      const obj = detect(el);
       if (!obj) continue;
       const key = `show${obj.type[0].toUpperCase()}${obj.type.slice(1)}Cards`;
       if (settings[key] === false) continue;
 
-      a.setAttribute(PROCESSED, obj.type);
-      a.setAttribute(ID_ATTR, obj.id);
-      a.classList.add('il-link');
-      a.addEventListener('mouseenter', onEnter);
-      a.addEventListener('mouseleave', onLeave);
+      el.setAttribute(PROCESSED, obj.type);
+      el.setAttribute(ID_ATTR, obj.id);
+      el.classList.add('il-link');
+      el.addEventListener('mouseenter', onEnter);
+      el.addEventListener('mouseleave', onLeave);
+      found++;
+    }
+
+    if (found > 0) log(`Scan: found ${found} new object links`);
+
+    // Also log all <a> hrefs for debugging (first scan only)
+    if (!scan._debugDone) {
+      scan._debugDone = true;
+      const allLinks = document.querySelectorAll('a[href]');
+      const hrefs = [...allLinks].map(a => a.getAttribute('href')).filter(Boolean);
+      log(`Page has ${allLinks.length} total <a> links. Sample hrefs:`, hrefs.slice(0, 20));
+
+      // Also check the current URL hash
+      log('Current URL hash:', window.location.hash);
+      log('Current full URL:', window.location.href);
     }
   }
 
   function onEnter(e) {
     const el = e.currentTarget;
+    const type = el.getAttribute(PROCESSED);
+    const id = el.getAttribute(ID_ATTR);
+    log(`Hover → ${type} ${id}`);
     clearTimeout(hoverTimer);
     clearTimeout(hideTimer);
     hoverTimer = setTimeout(
-      () => showCard(el, el.getAttribute(PROCESSED), el.getAttribute(ID_ATTR)),
+      () => showCard(el, type, id),
       settings.hoverDelay || 400
     );
   }
@@ -435,14 +476,33 @@
   // Bootstrap
   // ==========================================================
   function init() {
-    if (!location.hostname.includes('intune.microsoft.com')) return;
-    console.log('[Intune Lens] Initializing…');
+    if (!location.hostname.includes('intune.microsoft.com')) {
+      console.log('[Intune Lens] Not on Intune portal — inactive.');
+      return;
+    }
+    log('🚀 Initializing on', location.href);
+    log('document.readyState =', document.readyState);
     loadSettings();
     setupTokenBridge();
     ensureContainer();
     setupObserver();
-    setTimeout(scan, 2000);
-    console.log('[Intune Lens] Ready — hover over Intune objects to see details.');
+
+    // Check token status after a short delay
+    setTimeout(() => {
+      chrome.runtime.sendMessage({ type: 'getStatus' }, (r) => {
+        if (r?.hasToken) {
+          log('✅ Token available, cache size:', r.cacheSize);
+        } else {
+          warn('⚠ No token yet — navigate around Intune to trigger Graph calls');
+        }
+      });
+    }, 3000);
+
+    // Initial scan after page settles
+    setTimeout(() => { log('Running initial scan…'); scan(); }, 2000);
+
+    log('✅ Ready — hover over Intune object links to see details.');
+    log('💡 Filter console by "[IL]" to see only Intune Lens messages.');
   }
 
   document.readyState === 'loading'

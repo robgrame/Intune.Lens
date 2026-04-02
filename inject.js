@@ -11,8 +11,13 @@
   const MSG_TYPE = '__INTUNE_LENS_TOKEN__';
   const origin = window.location.origin;
 
+  console.log('%c[IL-inject]', 'color:#0078d4;font-weight:bold', '🔑 Token interceptor loaded in MAIN world');
+
   function relay(token) {
-    if (token) window.postMessage({ type: MSG_TYPE, token }, origin);
+    if (token) {
+      window.postMessage({ type: MSG_TYPE, token }, origin);
+      console.log('%c[IL-inject]', 'color:#0078d4;font-weight:bold', '🔑 Token captured and relayed');
+    }
   }
 
   // --- fetch ---

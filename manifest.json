@@ -20,22 +20,22 @@
         "https://intune.microsoft.com/*"
       ],
       "js": [
+        "inject.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://intune.microsoft.com/*"
+      ],
+      "js": [
         "content.js"
       ],
       "css": [
         "content.css"
       ],
       "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "inject.js"
-      ],
-      "matches": [
-        "https://intune.microsoft.com/*"
-      ]
     }
   ],
   "action": {
