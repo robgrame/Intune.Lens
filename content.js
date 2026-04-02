@@ -626,6 +626,62 @@
   }
 
   // ==========================================================
+  // Proactive data fetch — when on a list page, we make our
+  // own Graph API call to get object data for name matching.
+  // This bypasses the Web Worker issue entirely.
+  // ==========================================================
+  const LIST_PAGES = [
+    { re: /Devices(Windows)?Menu.*\/(allDevices|windowsDevices)/i,
+      endpoint: `/deviceManagement/managedDevices?$select=${DEVICE_SELECT}&$top=50&$orderby=deviceName`,
+      type: 'device', nameField: 'deviceName' },
+    { re: /DevicesMenu.*\/overview/i,
+      endpoint: `/deviceManagement/managedDevices?$select=${DEVICE_SELECT}&$top=50&$orderby=deviceName`,
+      type: 'device', nameField: 'deviceName' },
+    { re: /UserManagementMenuBlade/i,
+      endpoint: `/users?$select=id,displayName,userPrincipalName,jobTitle,department,accountEnabled&$top=50`,
+      type: 'user', nameField: 'displayName' },
+    { re: /AppsMenu/i,
+      endpoint: `/deviceAppManagement/mobileApps?$select=id,displayName,publisher,description&$top=50&$filter=isAssigned eq true`,
+      type: 'app', nameField: 'displayName' },
+  ];
+
+  let lastListFetchHash = '';
+
+  async function fetchListData() {
+    const hash = location.hash || '';
+    if (hash === lastListFetchHash) return;
+
+    for (const lp of LIST_PAGES) {
+      if (!lp.re.test(hash)) continue;
+      lastListFetchHash = hash;
+      log(`📋 List page detected (${lp.type}). Fetching from Graph…`);
+
+      try {
+        const data = await graphQuery(lp.endpoint, `list:${lp.type}:${hash}`);
+        const items = data.value || [];
+        log(`📋 Got ${items.length} ${lp.type}(s) from Graph`);
+
+        for (const item of items) {
+          objectCache.set(item.id, { ...item, _t: lp.type });
+          const name = item[lp.nameField] || item.displayName;
+          if (name) nameToObj.set(name.toLowerCase().trim(), { id: item.id, type: lp.type });
+          if (item.userPrincipalName)
+            nameToObj.set(item.userPrincipalName.toLowerCase().trim(), { id: item.id, type: lp.type });
+        }
+
+        log(`📇 Lookup table: ${nameToObj.size} entries`);
+        // Wait a moment for DOM to settle then scan
+        setTimeout(scanGridCells, 500);
+        setTimeout(scanGridCells, 2000); // re-scan after virtual scroll loads
+        setTimeout(scanGridCells, 5000); // one more for late renders
+      } catch (err) {
+        warn(`Failed to fetch ${lp.type} list: ${err.message}`);
+      }
+      return;
+    }
+  }
+
+  // ==========================================================
   // MutationObserver — react to SPA navigation
   // ==========================================================
   let scanTimer = null;
@@ -633,15 +689,16 @@
   function setupObserver() {
     new MutationObserver(() => {
       clearTimeout(scanTimer);
-      scanTimer = setTimeout(scan, SCAN_DEBOUNCE);
+      scanTimer = setTimeout(() => { scan(); scanGridCells(); }, SCAN_DEBOUNCE);
     }).observe(document.body, { childList: true, subtree: true });
 
     window.addEventListener('hashchange', () => {
       log('Hash changed →', location.hash.substring(0, 100));
       hideImmediate();
       updateFab();
+      fetchListData();
       clearTimeout(scanTimer);
-      scan._dbg = false; // re-dump debug on new page
+      scan._dbg = false;
       scanTimer = setTimeout(scan, SCAN_DEBOUNCE);
     });
 
@@ -652,6 +709,7 @@
         lastUrl = location.href;
         log('URL changed (poll) →', location.href.substring(0, 120));
         updateFab();
+        fetchListData();
         clearTimeout(scanTimer);
         scan._dbg = false;
         scanTimer = setTimeout(scan, SCAN_DEBOUNCE);
@@ -682,7 +740,7 @@
       console.log('[Intune Lens] Not on Intune portal — inactive.');
       return;
     }
-    log('🚀 Intune Lens v1.3.0 — Initializing on', location.href);
+    log('🚀 Intune Lens v1.4.0 — Initializing on', location.href);
     log('document.readyState =', document.readyState);
     loadSettings();
     setupBridge();
@@ -700,8 +758,8 @@
       });
     }, 3000);
 
-    // Initial scan + FAB after page settles
-    setTimeout(() => { log('Running initial scan…'); scan(); updateFab(); }, 2000);
+    // Initial scan + FAB + list data fetch after page settles
+    setTimeout(() => { log('Running initial scan…'); scan(); updateFab(); fetchListData(); }, 2000);
 
     log('✅ Ready — hover over Intune object links to see details.');
     log('💡 Filter console by "[IL]" to see only Intune Lens messages.');
