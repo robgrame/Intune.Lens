@@ -8,6 +8,7 @@ const TOKEN_MAX_AGE = 45 * 60 * 1000;  // consider token stale after 45 min
 const MAX_CACHE_ENTRIES = 300;
 
 const cache = new Map();
+let sharedLookup = {};  // shared name→obj lookup for blade iframes
 
 // ----------------------------------------------------------
 // Token capture via webRequest (reads Authorization header
@@ -72,6 +73,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case 'clearCache': {
       cache.clear();
       sendResponse({ ok: true });
+      return false;
+    }
+
+    // Shared lookup data (main frame → service worker → blade iframes)
+    case 'setLookup': {
+      sharedLookup = msg.data || {};
+      sendResponse({ ok: true });
+      return false;
+    }
+
+    case 'getLookup': {
+      sendResponse({ ok: true, data: sharedLookup });
       return false;
     }
   }

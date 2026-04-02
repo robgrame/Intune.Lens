@@ -731,8 +731,8 @@
   // ==========================================================
   function shareDataWithBlades() {
     const lookup = Object.fromEntries(nameToObj);
-    chrome.storage.session.set({ ilLookup: lookup }, () => {
-      log(`📤 Shared ${nameToObj.size} entries with blade iframes`);
+    chrome.runtime.sendMessage({ type: 'setLookup', data: lookup }, () => {
+      log(`📤 Shared ${nameToObj.size} entries via service worker`);
     });
   }
 
@@ -806,7 +806,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.0.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.0.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
@@ -833,56 +833,37 @@
 
     if (IS_BLADE) {
       setupBladeObserver();
-      loadSharedData();
-      // Poll for shared data in case storage listener misses the update
+      // Poll service worker for shared lookup data every 2s
       let pollCount = 0;
-      const pollInterval = setInterval(() => {
-        if (nameToObj.size > 0 && pollCount > 3) { clearInterval(pollInterval); return; }
+      const poll = () => {
         pollCount++;
-        chrome.storage.session.get(['ilLookup'], (r) => {
-          if (r?.ilLookup && nameToObj.size === 0) {
-            const entries = Object.entries(r.ilLookup);
-            for (const [name, obj] of entries) nameToObj.set(name, obj);
-            log(`🔲 Blade: polled ${entries.length} entries (poll #${pollCount})`);
+        chrome.runtime.sendMessage({ type: 'getLookup' }, (r) => {
+          if (chrome.runtime.lastError) {
+            log('🔲 Blade poll error:', chrome.runtime.lastError.message);
+            return;
+          }
+          if (r?.data && Object.keys(r.data).length > 0) {
+            const entries = Object.entries(r.data);
+            if (entries.length !== nameToObj.size) {
+              nameToObj.clear();
+              for (const [name, obj] of entries) nameToObj.set(name, obj);
+              log(`🔲 Blade: got ${entries.length} entries from service worker (poll #${pollCount})`);
+            }
             scanGridCells();
-          } else if (nameToObj.size > 0) {
-            scanGridCells(); // re-scan with existing data (DOM may have updated)
+          } else {
+            log(`🔲 Blade: no data yet (poll #${pollCount})`);
           }
         });
+      };
+      // Poll immediately, then every 2s for up to 30s
+      setTimeout(poll, 500);
+      const interval = setInterval(() => {
+        poll();
+        if (pollCount > 15) clearInterval(interval);
       }, 2000);
     }
 
     log('✅ Ready.');
-  }
-
-  // ==========================================================
-  // Blade iframe — read data shared by main frame
-  // ==========================================================
-  function loadSharedData() {
-    chrome.storage.session.get(['ilLookup'], (r) => {
-      if (r?.ilLookup) {
-        const entries = Object.entries(r.ilLookup);
-        for (const [name, obj] of entries) nameToObj.set(name, obj);
-        log(`🔲 Blade: loaded ${entries.length} entries from shared data`);
-        scanGridCells();
-        setTimeout(scanGridCells, 1000);
-        setTimeout(scanGridCells, 3000);
-      } else {
-        log('🔲 Blade: no shared data yet, will listen for updates');
-      }
-    });
-
-    // Listen for updates (e.g. user navigates from devices → apps)
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'session' && changes.ilLookup?.newValue) {
-        nameToObj.clear();
-        const entries = Object.entries(changes.ilLookup.newValue);
-        for (const [name, obj] of entries) nameToObj.set(name, obj);
-        log(`🔲 Blade: updated to ${entries.length} entries`);
-        scanGridCells();
-        setTimeout(scanGridCells, 1000);
-      }
-    });
   }
 
   function setupBladeObserver() {
