@@ -491,19 +491,20 @@
     card.className = 'il-card il-enter';
     card.innerHTML = loadingCard(type);
 
-    // Position relative to anchor
+    // Position fixed in viewport (won't move on page scroll)
     const rect = anchor.getBoundingClientRect();
     const W = 400, MARGIN = 8;
-    let left = rect.left + window.scrollX;
-    let top  = rect.bottom + window.scrollY + MARGIN;
+    let left = rect.left;
+    let top  = rect.bottom + MARGIN;
 
     if (left + W > window.innerWidth)  left = window.innerWidth - W - MARGIN;
     if (left < MARGIN)                 left = MARGIN;
     if (rect.bottom + 320 > window.innerHeight) {
-      top = rect.top + window.scrollY - 320 - MARGIN;
-      if (top < 0) top = rect.bottom + window.scrollY + MARGIN;
+      top = rect.top - 320 - MARGIN;
+      if (top < 0) top = rect.bottom + MARGIN;
     }
 
+    card.style.position = 'fixed';
     card.style.left = `${left}px`;
     card.style.top  = `${top}px`;
 
@@ -523,6 +524,13 @@
         if (pin) { pin.textContent = '📍'; pin.title = 'Unpin card'; }
       }
     }, { passive: true });
+    // Prevent page scroll when wheeling inside the card
+    card.addEventListener('wheel', (e) => {
+      const { scrollTop, scrollHeight, clientHeight } = card;
+      const atTop = scrollTop === 0 && e.deltaY < 0;
+      const atBottom = scrollTop + clientHeight >= scrollHeight - 1 && e.deltaY > 0;
+      if (!atTop && !atBottom) e.preventDefault();
+    }, { passive: false });
 
     requestAnimationFrame(() => card.classList.remove('il-enter'));
 
@@ -1036,7 +1044,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.2.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.2.2 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
