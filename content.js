@@ -226,6 +226,8 @@
       app._assignments = assignments.value || [];
     } catch { app._assignments = []; }
 
+    if (app._assignments.length > 0) await resolveGroupNames(app._assignments);
+
     return app;
   }
 
@@ -284,6 +286,9 @@
       } catch { /* try next */ }
     }
 
+    // Resolve group names for assignments
+    if (pol._assignments.length > 0) await resolveGroupNames(pol._assignments);
+
     return pol;
   }
 
@@ -291,6 +296,36 @@
   // Utility helpers
   // ==========================================================
   function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+  // Group name cache
+  const groupNameCache = new Map();
+
+  async function resolveGroupNames(assignments) {
+    const ids = [];
+    for (const a of assignments) {
+      const gid = a.target?.groupId;
+      if (gid && !groupNameCache.has(gid)) ids.push(gid);
+    }
+    // Fetch unknown group names in parallel (max 20 at a time)
+    const batch = ids.slice(0, 20);
+    await Promise.all(batch.map(async (gid) => {
+      try {
+        const g = await graphQuery(`/groups/${gid}?$select=displayName`, `grp:${gid}`);
+        if (g.displayName) groupNameCache.set(gid, g.displayName);
+      } catch { groupNameCache.set(gid, gid.substring(0, 8) + '…'); }
+    }));
+  }
+
+  function getGroupName(target) {
+    if (!target) return 'Unknown';
+    const type = target['@odata.type'] || '';
+    if (type.includes('allDevices')) return '🖥️ All devices';
+    if (type.includes('allLicensedUsers')) return '👥 All licensed users';
+    if (type.includes('allUsers')) return '👥 All users';
+    const gid = target.groupId;
+    if (!gid) return 'Unknown';
+    return groupNameCache.get(gid) || gid.substring(0, 8) + '…';
+  }
 
   function ago(iso) {
     if (!iso) return 'N/A';
@@ -529,12 +564,7 @@
               availableWithoutEnrollment: { cls: 'ok', icon: '🟡' }
             };
             const ic = intentMap[intent] || { cls: 'unk', icon: '⚫' };
-            const target = asg.target;
-            let groupName = 'All devices';
-            if (target?.groupId) groupName = target.groupId.substring(0, 8) + '…';
-            if (target?.['@odata.type']?.includes('allDevices')) groupName = 'All devices';
-            if (target?.['@odata.type']?.includes('allUsers')) groupName = 'All users';
-            if (target?.['@odata.type']?.includes('allLicensedUsers')) groupName = 'All licensed users';
+            const groupName = getGroupName(asg.target);
             return `<div class="il-assign-item"><span class="il-dot ${ic.cls}"></span><span>${esc(intent)}</span><span class="il-assign-target">${esc(groupName)}</span></div>`;
           }).join('')}</div>
         </div>` : '';
@@ -589,15 +619,11 @@
 
     function assignTarget(a) {
       const t = a.target || {};
-      const type = t['@odata.type'] || '';
-      if (type.includes('allDevices')) return '🖥️ All devices';
-      if (type.includes('allLicensedUsers')) return '👥 All licensed users';
-      if (type.includes('allUsers')) return '👥 All users';
-      const gid = t.groupId ? t.groupId.substring(0, 8) + '…' : '';
+      const name = getGroupName(t);
       const filter = t.deviceAndAppManagementAssignmentFilterId
-        ? ` 🔽 filter: ${t.deviceAndAppManagementAssignmentFilterType || 'include'}`
+        ? ` 🔽 ${t.deviceAndAppManagementAssignmentFilterType || 'include'}`
         : '';
-      return `${gid}${filter}`;
+      return `${name}${filter}`;
     }
 
     const inclHtml = included.length > 0 ? `
@@ -1292,7 +1318,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.7.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.8.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
