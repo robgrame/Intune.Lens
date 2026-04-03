@@ -1248,7 +1248,7 @@
               const data = await graphQuery(ep, `list:${lp.type}:${ep}`);
               const items = data.value || [];
               for (const item of items) {
-                const displayName = item.displayName || item.name;
+                const displayName = item[lp.nameField] || item.displayName || item.name;
                 if (!displayName) continue;
                 objectCache.set(item.id, { ...item, displayName, _t: lp.type });
                 nameToObj.set(displayName.toLowerCase().trim(), { id: item.id, type: lp.type });
@@ -1373,7 +1373,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.9.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.9.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
