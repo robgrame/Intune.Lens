@@ -186,17 +186,37 @@
     let user = objectCache.get(id);
     if (!user?.userPrincipalName) {
       user = await graphQuery(
-        `/users/${id}?$select=displayName,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,mail,accountEnabled,createdDateTime`,
+        `/users/${id}?$select=displayName,givenName,surname,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,mail,accountEnabled,createdDateTime,signInActivity`,
         `usr:${id}`
       );
     }
+    // Managed devices
     try {
       const devs = await graphQuery(
-        `/users/${id}/managedDevices?$select=deviceName,operatingSystem,complianceState&$top=10`,
+        `/users/${id}/managedDevices?$select=deviceName,operatingSystem,complianceState&$top=50`,
         `usr-dev:${id}`
       );
       user._devices = devs.value || [];
     } catch { user._devices = []; }
+
+    // Entra directory roles
+    try {
+      const roles = await graphQuery(
+        `/users/${id}/transitiveMemberOf/microsoft.graph.directoryRole?$select=displayName&$top=50`,
+        `usr-roles:${id}`
+      );
+      user._roles = (roles.value || []).map(r => r.displayName).filter(Boolean);
+    } catch { user._roles = []; }
+
+    // Group memberships
+    try {
+      const groups = await graphQuery(
+        `/users/${id}/transitiveMemberOf/microsoft.graph.group?$select=displayName,groupTypes&$top=50`,
+        `usr-groups:${id}`
+      );
+      user._groups = (groups.value || []).filter(g => g.displayName);
+    } catch { user._groups = []; }
+
     return user;
   }
 
@@ -507,10 +527,35 @@
   }
 
   function userCard(u) {
-    const devItems = (u._devices || []).slice(0, 5).map(d => {
+    const lastSignIn = u.signInActivity?.lastSignInDateTime;
+
+    // Devices
+    const devItems = (u._devices || []).map(d => {
       const c = badge(d.complianceState);
       return `<div class="il-dev-item"><span class="il-dot ${c.cls}"></span>${esc(d.deviceName)} <span class="il-dev-os">${d.operatingSystem || ''}</span></div>`;
     }).join('');
+
+    // Entra roles
+    const roles = u._roles || [];
+    const rolesHtml = roles.length > 0 ? `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Entra Roles (${roles.length})</div>
+          ${roles.map(r => `<div class="il-dev-item"><span class="il-dot warn"></span>${esc(r)}</div>`).join('')}
+        </div>` : '';
+
+    // Groups
+    const groups = u._groups || [];
+    const grpHtml = groups.length > 0 ? `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Groups (${groups.length})</div>
+          ${groups.map(g => {
+            const isDynamic = g.groupTypes?.includes('DynamicMembership');
+            return `<div class="il-dev-item"><span class="il-dot unk"></span>${esc(g.displayName)} ${isDynamic ? '<span class="il-dev-os">dynamic</span>' : ''}</div>`;
+          }).join('')}
+        </div>` : '';
+
     return `
       <div class="il-hdr">
         <span class="il-ico">👤</span>
@@ -523,13 +568,20 @@
       <div class="il-body">
         <div class="il-sec">
           <div class="il-sec-ttl">Profile</div>
+          ${row('First Name', u.givenName)}
+          ${row('Last Name', u.surname)}
+          ${row('UPN', u.userPrincipalName)}
+          ${row('Email', u.mail)}
           ${row('Job Title', u.jobTitle)}
           ${row('Department', u.department)}
           ${row('Office', u.officeLocation)}
           ${row('Phone', u.mobilePhone)}
-          ${row('Email', u.mail)}
+          ${row('Last Sign-in', lastSignIn ? ago(lastSignIn) : 'N/A')}
+          ${row('Created', ago(u.createdDateTime))}
         </div>
+        ${rolesHtml}
         ${devItems ? `<hr class="il-div"><div class="il-sec"><div class="il-sec-ttl">Managed Devices (${u._devices.length})</div><div class="il-dev-list">${devItems}</div></div>` : ''}
+        ${grpHtml}
       </div>
       <div class="il-foot"><span class="il-tag">USER</span><span class="il-brand">Intune Lens · by ROBGRAME</span></div>`;
   }
@@ -1321,7 +1373,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.8.3 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.9.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
