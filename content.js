@@ -241,6 +241,7 @@
       { ep: `/deviceManagement/deviceCompliancePolicies/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version`, type: 'Compliance Policy' },
       { ep: `/beta/deviceManagement/configurationPolicies/${id}?$select=id,name,description,createdDateTime,lastModifiedDateTime`, type: 'Settings Catalog' },
       { ep: `/beta/deviceManagement/groupPolicyConfigurations/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime`, type: 'Admin Template' },
+      { ep: `/beta/deviceManagement/intents/${id}?$select=id,displayName,description,lastModifiedDateTime`, type: 'Endpoint Security' },
     ];
 
     for (const { ep, type } of tryEndpoints) {
@@ -276,6 +277,7 @@
       `/deviceManagement/deviceCompliancePolicies/${id}/assignments`,
       `/beta/deviceManagement/configurationPolicies/${id}/assignments`,
       `/beta/deviceManagement/groupPolicyConfigurations/${id}/assignments`,
+      `/beta/deviceManagement/intents/${id}/assignments`,
     ];
     pol._assignments = [];
     for (const ep of assignEndpoints) {
@@ -1158,9 +1160,10 @@
     // Multiple endpoint types needed — use 'multi' flag to fetch all
     { re: /configuration/i,
       multi: [
-        `/deviceManagement/deviceConfigurations?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
-        `/beta/deviceManagement/configurationPolicies?$select=id,name,description,createdDateTime,lastModifiedDateTime&$top=100`,
-        `/beta/deviceManagement/groupPolicyConfigurations?$select=id,displayName,description,createdDateTime,lastModifiedDateTime&$top=100`,
+        `/deviceManagement/deviceConfigurations?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=200`,
+        `/beta/deviceManagement/configurationPolicies?$select=id,name,description,createdDateTime,lastModifiedDateTime&$top=200`,
+        `/beta/deviceManagement/groupPolicyConfigurations?$select=id,displayName,description,createdDateTime,lastModifiedDateTime&$top=200`,
+        `/beta/deviceManagement/intents?$select=id,displayName,description,lastModifiedDateTime&$top=200`,
       ],
       type: 'policy', nameField: 'displayName' },
     { re: /compliancePolicy/i,
@@ -1318,7 +1321,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.8.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.8.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
