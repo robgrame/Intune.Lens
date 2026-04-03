@@ -561,7 +561,7 @@
         ${hardwareInfoHtml(d._hwInfo)}
         ${autopatchInfoHtml(d._autopatch)}
       </div>
-      <div class="il-foot"><span class="il-tag">DEVICE</span><span class="il-brand">🔍 Intune Lens v3.2.1 · by ROBGRAME</span></div>`;
+      <div class="il-foot"><span class="il-tag">DEVICE</span><span class="il-brand">🔍 Intune Lens v3.2.2 · by ROBGRAME</span></div>`;
   }
 
   function hardwareInfoHtml(hw) {
@@ -666,7 +666,7 @@
         ${devItems ? `<hr class="il-div"><div class="il-sec"><div class="il-sec-ttl">Managed Devices (${u._devices.length})</div><div class="il-dev-list">${devItems}</div></div>` : ''}
         ${grpHtml}
       </div>
-      <div class="il-foot"><span class="il-tag">USER</span><span class="il-brand">🔍 Intune Lens v3.2.1 · by ROBGRAME</span></div>`;
+      <div class="il-foot"><span class="il-tag">USER</span><span class="il-brand">🔍 Intune Lens v3.2.2 · by ROBGRAME</span></div>`;
   }
 
   function appCard(a) {
@@ -726,7 +726,7 @@
         ${statsHtml}
         ${assignHtml}
       </div>
-      <div class="il-foot"><span class="il-tag">APP</span><span class="il-brand">🔍 Intune Lens v3.2.1 · by ROBGRAME</span></div>`;
+      <div class="il-foot"><span class="il-tag">APP</span><span class="il-brand">🔍 Intune Lens v3.2.2 · by ROBGRAME</span></div>`;
   }
 
   function policyCard(p) {
@@ -797,7 +797,7 @@
         ${inclHtml}
         ${exclHtml}
       </div>
-      <div class="il-foot"><span class="il-tag">POLICY</span><span class="il-brand">🔍 Intune Lens v3.2.1 · by ROBGRAME</span></div>`;
+      <div class="il-foot"><span class="il-tag">POLICY</span><span class="il-brand">🔍 Intune Lens v3.2.2 · by ROBGRAME</span></div>`;
   }
 
   function loadingCard(type) {
@@ -1474,7 +1474,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v3.2.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v3.2.2 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
