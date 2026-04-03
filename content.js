@@ -1206,7 +1206,7 @@
               totalItems += items.length;
               log(`📋 Got ${items.length} from ${ep.substring(0, 60)}…`);
             } catch (epErr) {
-              if (/token|Token|expired|401/i.test(epErr.message)) tokenError = true;
+              if (/token|Token|expired|401|invalidated/i.test(epErr.message)) tokenError = true;
               log(`📋 Skipped ${ep.substring(0, 50)}… (${epErr.message?.substring(0, 40)})`);
             }
           }
@@ -1226,9 +1226,9 @@
           setTimeout(scanGridCells, 1500);
           setTimeout(scanGridCells, 4000);
         } catch (err) {
-          if (retryCount < 5 && /token|Token|expired|401/i.test(err.message)) {
+          if (retryCount < 5 && /token|Token|expired|401|invalidated/i.test(err.message)) {
             const delay = (retryCount + 1) * 2000;
-            log(`⏳ Token not ready — retry #${retryCount + 1} in ${delay / 1000}s`);
+            log(`⏳ Retry #${retryCount + 1} in ${delay / 1000}s — ${err.message?.substring(0, 40)}`);
             setTimeout(() => fetchListData(retryCount + 1), delay);
           } else {
             warn(`Graph call failed for ${lp.type}: ${err.message}`);
@@ -1321,7 +1321,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.8.2 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.8.3 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
