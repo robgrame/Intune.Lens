@@ -179,10 +179,22 @@
       }
     }
 
-    return dev;
-  }
+    // Windows Autopatch status
+    dev._autopatch = null;
+    if (dev.azureADDeviceId) {
+      try {
+        const ap = await graphQuery(
+          `https://services.autopatch.microsoft.com/reporting/reports/v1/devicesReport/registeredDevices/details?deviceId=${dev.azureADDeviceId}`,
+          `dev-autopatch:${dev.azureADDeviceId}`
+        );
+        dev._autopatch = ap;
+        log(`🔄 Autopatch data received`);
+      } catch {
+        // Autopatch may not be available or device not registered
+      }
+    }
 
-  async function fetchUser(id) {
+    return dev;
     let user = objectCache.get(id);
     if (!user?.userPrincipalName) {
       user = await graphQuery(
@@ -522,8 +534,29 @@
         ${cfHtml}
         ${grpHtml}
         ${deviceAppsHtml(d._apps)}
+        ${autopatchHtml(d._autopatch)}
       </div>
       <div class="il-foot"><span class="il-tag">DEVICE</span><span class="il-brand">Intune Lens · by ROBGRAME</span></div>`;
+  }
+
+  function autopatchHtml(ap) {
+    if (!ap) return '';
+    // Autopatch can return a single object or array
+    const data = Array.isArray(ap) ? ap[0] : (ap.value?.[0] || ap);
+    if (!data || (!data.updateStatus && !data.deploymentRing)) return '';
+
+    return `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Windows Autopatch</div>
+          ${data.deploymentRing ? row('Ring', data.deploymentRing) : ''}
+          ${data.updateStatus ? row('Update Status', data.updateStatus) : ''}
+          ${data.currentOsVersion ? row('Current OS', data.currentOsVersion) : ''}
+          ${data.targetOsVersion ? row('Target OS', data.targetOsVersion) : ''}
+          ${data.lastScanTime ? row('Last Scan', ago(data.lastScanTime)) : ''}
+          ${data.pauseStatus ? row('Pause Status', data.pauseStatus) : ''}
+          ${data.expeditedUpdate !== undefined ? row('Expedited', data.expeditedUpdate ? 'Yes' : 'No') : ''}
+        </div>`;
   }
 
   function userCard(u) {
@@ -1373,7 +1406,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.9.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v3.0.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 

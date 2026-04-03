@@ -108,9 +108,11 @@ async function handleGraphQuery(endpoint, cacheKey) {
     throw new Error('No valid token. Browse the Intune portal so the extension can capture one.');
   }
 
-  // 3. Call Graph (support beta endpoints)
+  // 3. Call API (support beta endpoints and external URLs)
   let url;
-  if (endpoint.startsWith('/beta/')) {
+  if (endpoint.startsWith('https://')) {
+    url = endpoint; // full URL (e.g. Autopatch)
+  } else if (endpoint.startsWith('/beta/')) {
     url = `https://graph.microsoft.com/beta${endpoint.substring(5)}`;
   } else {
     url = `https://graph.microsoft.com/v1.0${endpoint}`;
