@@ -1160,13 +1160,13 @@
           // Support multi-endpoint pages (e.g. configuration = legacy + settings catalog + admin templates)
           const endpoints = lp.multi || [lp.endpoint];
           let totalItems = 0;
+          let tokenError = false;
 
           for (const ep of endpoints) {
             try {
               const data = await graphQuery(ep, `list:${lp.type}:${ep}`);
               const items = data.value || [];
               for (const item of items) {
-                // Settings Catalog uses 'name' instead of 'displayName'
                 const displayName = item.displayName || item.name;
                 if (!displayName) continue;
                 objectCache.set(item.id, { ...item, displayName, _t: lp.type });
@@ -1177,8 +1177,17 @@
               totalItems += items.length;
               log(`📋 Got ${items.length} from ${ep.substring(0, 60)}…`);
             } catch (epErr) {
+              if (/token|Token|expired|401/i.test(epErr.message)) tokenError = true;
               log(`📋 Skipped ${ep.substring(0, 50)}… (${epErr.message?.substring(0, 40)})`);
             }
+          }
+
+          // If all failed due to token, retry
+          if (totalItems === 0 && tokenError && retryCount < 5) {
+            const delay = (retryCount + 1) * 2000;
+            log(`⏳ Token not ready — retry #${retryCount + 1} in ${delay / 1000}s`);
+            setTimeout(() => fetchListData(retryCount + 1), delay);
+            return;
           }
 
           lastListFetchHash = hash;
@@ -1283,7 +1292,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.7.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.7.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
