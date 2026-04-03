@@ -957,6 +957,13 @@
 
     if (matched > 0) {
       log(`GridScan: matched ${matched} cells ✓`);
+      // Log first few matched elements for debugging
+      const tagged = document.querySelectorAll(`[${PROCESSED}]`);
+      const debugEls = [...tagged].slice(-Math.min(matched, 3));
+      debugEls.forEach(el => {
+        const r = el.getBoundingClientRect();
+        log(`  ↳ <${el.tagName}> class="${(el.className||'').substring(0,50)}" text="${(el.textContent||'').substring(0,30)}" visible=${r.width > 0 && r.height > 0} size=${Math.round(r.width)}x${Math.round(r.height)}`);
+      });
     } else if (IS_BLADE && !scanGridCells._dumped) {
       scanGridCells._dumped = true;
       const samples = [];
@@ -1253,7 +1260,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.6.3 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.6.4 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
