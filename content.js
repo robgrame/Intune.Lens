@@ -186,10 +186,12 @@
         `/beta/deviceManagement/managedDevices/${id}/windowsUpdateState`,
         `dev-wu:${id}`
       );
-      // Can be single object or collection
       if (wu.value) dev._updateStates = wu.value;
       else if (wu.featureUpdateVersion !== undefined) dev._updateStates = [wu];
-    } catch { /* optional */ }
+      log(`🔄 Windows Update: ${dev._updateStates.length} states`);
+    } catch (wuErr) {
+      log(`🔄 Windows Update: ${wuErr.message?.substring(0, 60)}`);
+    }
 
     return dev;
   }
@@ -1408,7 +1410,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v3.0.2 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v3.0.3 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
