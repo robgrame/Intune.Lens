@@ -233,53 +233,47 @@
     let pol = null;
     let polType = 'unknown';
 
-    // Try compliance policy first, then device configuration
-    try {
-      pol = await graphQuery(
-        `/deviceManagement/deviceCompliancePolicies/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version`,
-        `pol:${id}`
-      );
-      polType = 'Compliance Policy';
-    } catch {
+    // Try multiple policy types
+    const tryEndpoints = [
+      { ep: `/deviceManagement/deviceConfigurations/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version`, type: 'Configuration Profile' },
+      { ep: `/deviceManagement/deviceCompliancePolicies/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version`, type: 'Compliance Policy' },
+      { ep: `/beta/deviceManagement/configurationPolicies/${id}?$select=id,name,description,createdDateTime,lastModifiedDateTime`, type: 'Settings Catalog' },
+      { ep: `/beta/deviceManagement/groupPolicyConfigurations/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime`, type: 'Admin Template' },
+    ];
+
+    for (const { ep, type } of tryEndpoints) {
       try {
-        pol = await graphQuery(
-          `/deviceManagement/deviceConfigurations/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version`,
-          `pol:${id}`
-        );
-        polType = 'Configuration Profile';
-      } catch {
-        // Try beta groupPolicyConfigurations (Admin Templates)
-        try {
-          pol = await graphQuery(
-            `/beta/deviceManagement/groupPolicyConfigurations/${id}?$select=id,displayName,description,createdDateTime,lastModifiedDateTime`,
-            `pol:${id}`
-          );
-          polType = 'Admin Template';
-        } catch {
-          throw new Error('Policy not found');
-        }
-      }
+        pol = await graphQuery(ep, `pol:${id}:${type}`);
+        polType = type;
+        // Settings Catalog uses 'name' not 'displayName'
+        if (!pol.displayName && pol.name) pol.displayName = pol.name;
+        break;
+      } catch { /* try next */ }
     }
+    if (!pol) throw new Error('Policy not found');
 
     pol._polType = polType;
 
     // Device status summary
     const summaryEndpoints = [
-      `/deviceManagement/deviceCompliancePolicies/${id}/deviceStatusOverview`,
       `/deviceManagement/deviceConfigurations/${id}/deviceStatusOverview`,
+      `/deviceManagement/deviceCompliancePolicies/${id}/deviceStatusOverview`,
+      `/beta/deviceManagement/configurationPolicies/${id}/deviceStatusOverview`,
     ];
+    pol._statusOverview = null;
     for (const ep of summaryEndpoints) {
       try {
         pol._statusOverview = await graphQuery(ep, `pol-overview:${id}`);
         break;
       } catch { /* try next */ }
     }
-    if (!pol._statusOverview) pol._statusOverview = null;
 
     // Assignments (groups, exclusions, filters)
     const assignEndpoints = [
-      `/deviceManagement/deviceCompliancePolicies/${id}/assignments`,
       `/deviceManagement/deviceConfigurations/${id}/assignments`,
+      `/deviceManagement/deviceCompliancePolicies/${id}/assignments`,
+      `/beta/deviceManagement/configurationPolicies/${id}/assignments`,
+      `/beta/deviceManagement/groupPolicyConfigurations/${id}/assignments`,
     ];
     pol._assignments = [];
     for (const ep of assignEndpoints) {
@@ -1094,11 +1088,14 @@
     })();
   }
 
+  let lastHoverId = null;
   function onEnter(e) {
     const el = e.currentTarget;
     const type = el.getAttribute(PROCESSED);
     const id = el.getAttribute(ID_ATTR);
-    log(`Hover → ${type} ${id}`);
+    // Skip if already showing or loading this same object
+    if (currentCard && lastHoverId === id) return;
+    lastHoverId = id;
     clearTimeout(hoverTimer);
     clearTimeout(hideTimer);
     hoverTimer = setTimeout(
@@ -1109,6 +1106,7 @@
 
   function onLeave() {
     clearTimeout(hoverTimer);
+    lastHoverId = null;
     scheduleHide();
   }
 
@@ -1131,10 +1129,15 @@
       endpoint: `/deviceAppManagement/mobileApps?$select=id,displayName,publisher,description,createdDateTime,lastModifiedDateTime&$top=50`,
       type: 'app', nameField: 'displayName' },
     // Configuration profiles & compliance policies
-    { re: /\/configuration$/i,
-      endpoint: `/deviceManagement/deviceConfigurations?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
+    // Multiple endpoint types needed — use 'multi' flag to fetch all
+    { re: /configuration/i,
+      multi: [
+        `/deviceManagement/deviceConfigurations?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
+        `/beta/deviceManagement/configurationPolicies?$select=id,name,description,createdDateTime,lastModifiedDateTime&$top=100`,
+        `/beta/deviceManagement/groupPolicyConfigurations?$select=id,displayName,description,createdDateTime,lastModifiedDateTime&$top=100`,
+      ],
       type: 'policy', nameField: 'displayName' },
-    { re: /\/compliancePolicy/i,
+    { re: /compliancePolicy/i,
       endpoint: `/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
       type: 'policy', nameField: 'displayName' },
     { re: /SecurityManagementMenu/i,
@@ -1154,20 +1157,32 @@
         log(`📋 MATCH → ${lp.type} list. Calling Graph…${retryCount ? ` (retry #${retryCount})` : ''}`);
 
         try {
-          const data = await graphQuery(lp.endpoint, `list:${lp.type}:${hash}`);
-          lastListFetchHash = hash;
-          const items = data.value || [];
-          log(`📋 Got ${items.length} ${lp.type}(s) from Graph ✓`);
+          // Support multi-endpoint pages (e.g. configuration = legacy + settings catalog + admin templates)
+          const endpoints = lp.multi || [lp.endpoint];
+          let totalItems = 0;
 
-          for (const item of items) {
-            objectCache.set(item.id, { ...item, _t: lp.type });
-            const name = item[lp.nameField] || item.displayName;
-            if (name) nameToObj.set(name.toLowerCase().trim(), { id: item.id, type: lp.type });
-            if (item.userPrincipalName)
-              nameToObj.set(item.userPrincipalName.toLowerCase().trim(), { id: item.id, type: lp.type });
+          for (const ep of endpoints) {
+            try {
+              const data = await graphQuery(ep, `list:${lp.type}:${ep}`);
+              const items = data.value || [];
+              for (const item of items) {
+                // Settings Catalog uses 'name' instead of 'displayName'
+                const displayName = item.displayName || item.name;
+                if (!displayName) continue;
+                objectCache.set(item.id, { ...item, displayName, _t: lp.type });
+                nameToObj.set(displayName.toLowerCase().trim(), { id: item.id, type: lp.type });
+                if (item.userPrincipalName)
+                  nameToObj.set(item.userPrincipalName.toLowerCase().trim(), { id: item.id, type: lp.type });
+              }
+              totalItems += items.length;
+              log(`📋 Got ${items.length} from ${ep.substring(0, 60)}…`);
+            } catch (epErr) {
+              log(`📋 Skipped ${ep.substring(0, 50)}… (${epErr.message?.substring(0, 40)})`);
+            }
           }
 
-          log(`📇 Lookup table: ${nameToObj.size} entries. Sharing with iframes…`);
+          lastListFetchHash = hash;
+          log(`📇 Total: ${totalItems} ${lp.type}(s), lookup: ${nameToObj.size} entries`);
           shareDataWithBlades();
           setTimeout(scanGridCells, 300);
           setTimeout(scanGridCells, 1500);
@@ -1268,7 +1283,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.6.5 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.7.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
