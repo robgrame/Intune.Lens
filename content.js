@@ -677,6 +677,7 @@
 
   function showCard(anchor, type, id) {
     clearTimeout(hideTimer);
+    log(`showCard: ${type} ${id} in ${IS_BLADE ? 'blade' : 'main'} frame`);
 
     const container = ensureContainer();
     const card = document.createElement('div');
@@ -699,8 +700,9 @@
     card.style.position = 'fixed';
     card.style.left = `${left}px`;
     card.style.top  = `${top}px`;
+    log(`showCard: pos=${Math.round(left)},${Math.round(top)} viewport=${window.innerWidth}x${window.innerHeight}`);
 
-    hideImmediate();
+    hideImmediate(true);
     container.appendChild(card);
     currentCard = card;
     card._pinned = false;
@@ -733,12 +735,18 @@
       try {
         const fetchers = { device: fetchDevice, user: fetchUser, app: fetchApp, policy: fetchPolicy };
         const renderers = { device: deviceCard, user: userCard, app: appCard, policy: policyCard };
+        log(`showCard: fetching ${type} data…`);
         const data = await fetchers[type](id);
+        log(`showCard: data received, rendering card`);
         if (card === currentCard) {
           card.innerHTML = renderers[type](data);
           addCardControls(card);
+          log(`showCard: card rendered ✓ size=${card.offsetWidth}x${card.offsetHeight}`);
+        } else {
+          log(`showCard: card replaced while loading (stale)`);
         }
       } catch (err) {
+        log(`showCard: ERROR — ${err.message}`);
         if (card === currentCard) {
           card.innerHTML = errorCard(err.message);
           addCardControls(card);
@@ -1260,7 +1268,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.6.4 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.6.5 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
