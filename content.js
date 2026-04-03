@@ -1324,4 +1324,57 @@
   document.readyState === 'loading'
     ? document.addEventListener('DOMContentLoaded', init)
     : init();
+
+  // ==========================================================
+  // 🥚 Konami Code Easter Egg (works on the Intune page itself)
+  // ==========================================================
+  const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+  let konamiIdx = 0;
+  document.addEventListener('keydown', (e) => {
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (key === KONAMI[konamiIdx]) {
+      konamiIdx++;
+      if (konamiIdx === KONAMI.length) {
+        konamiIdx = 0;
+        showKonamiEgg();
+      }
+    } else {
+      konamiIdx = 0;
+    }
+  });
+
+  function showKonamiEgg() {
+    const existing = document.getElementById('il-konami');
+    if (existing) { existing.remove(); return; }
+
+    const phrases = [
+      "It looks like you're trying to manage devices.\nWould you like help enrolling 10,000 of them?",
+      "I see you have 3 non-compliant devices.\nHave you tried turning them off and on again?",
+      "Pro tip: the 'Sync' button doesn't work faster\nif you click it 47 times. I counted.",
+      "Your BitLocker key rotated successfully!\n...just kidding. Check the audit logs 😏",
+      "Congratulations! You've found me.\nI've been hiding here since Windows XP.",
+      "I noticed you haven't taken a break in 4 hours.\nIntune will still be broken when you get back.",
+      "Fun fact: the Intune portal loads faster\nif you believe hard enough ✨",
+      "Have you tried assigning this policy\nto 'All Users' and hoping for the best?",
+    ];
+
+    const el = document.createElement('div');
+    el.id = 'il-konami';
+    el.innerHTML = `
+      <div style="font-size:64px;line-height:1;animation:il-spin 0.3s ease 3;filter:drop-shadow(0 4px 8px rgba(0,0,0,.3))">📎</div>
+      <div style="background:#fffde7;border:2px solid #fdd835;border-radius:16px 16px 16px 4px;padding:16px 20px;max-width:320px;font:14px/1.6 'Segoe UI',system-ui,sans-serif;color:#333;box-shadow:0 6px 24px rgba(0,0,0,.2);white-space:pre-line">
+        <div style="font-weight:600;margin-bottom:4px">${phrases[Math.floor(Math.random() * phrases.length)]}</div>
+        <div style="font-size:10px;color:#999;text-align:right;margin-top:8px">click anywhere to dismiss · 🥚</div>
+      </div>
+    `;
+    Object.assign(el.style, {
+      position: 'fixed', bottom: '24px', right: '24px',
+      display: 'flex', alignItems: 'flex-end', gap: '12px',
+      zIndex: '2147483647', cursor: 'pointer',
+      animation: 'il-fab-in .5s ease'
+    });
+    el.addEventListener('click', () => el.remove());
+    document.body.appendChild(el);
+    log('🥚 Konami Code activated!');
+  }
 })();
