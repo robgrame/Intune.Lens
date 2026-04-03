@@ -1166,8 +1166,8 @@
         `/beta/deviceManagement/intents?$select=id,displayName,description,lastModifiedDateTime&$top=200`,
       ],
       type: 'policy', nameField: 'displayName' },
-    { re: /compliancePolicy/i,
-      endpoint: `/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
+    { re: /compliance/i,
+      endpoint: `/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=200`,
       type: 'policy', nameField: 'displayName' },
     { re: /SecurityManagementMenu/i,
       endpoint: `/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
@@ -1321,7 +1321,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.8.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.8.2 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
