@@ -195,6 +195,9 @@
     }
 
     return dev;
+  }
+
+  async function fetchUser(id) {
     let user = objectCache.get(id);
     if (!user?.userPrincipalName) {
       user = await graphQuery(
@@ -1406,7 +1409,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v3.0.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v3.0.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
