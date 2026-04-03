@@ -180,17 +180,17 @@
     }
 
     // Windows Update status (via beta windowsUpdateState)
+    // Windows Update info via beta device properties
     dev._updateStates = [];
     try {
-      const wu = await graphQuery(
-        `/beta/deviceManagement/managedDevices/${id}/windowsUpdateState`,
-        `dev-wu:${id}`
+      const betaDev = await graphQuery(
+        `/beta/deviceManagement/managedDevices/${id}?$select=windowsActiveMalwareCount,windowsRemediatedMalwareCount,hardwareInformation`,
+        `dev-beta:${id}`
       );
-      if (wu.value) dev._updateStates = wu.value;
-      else if (wu.featureUpdateVersion !== undefined) dev._updateStates = [wu];
-      log(`🔄 Windows Update: ${dev._updateStates.length} states`);
+      if (betaDev.hardwareInformation) dev._hwInfo = betaDev.hardwareInformation;
+      log(`🔄 Beta device info received`);
     } catch (wuErr) {
-      log(`🔄 Windows Update: ${wuErr.message?.substring(0, 60)}`);
+      log(`🔄 Beta device info: ${wuErr.message?.substring(0, 60)}`);
     }
 
     return dev;
@@ -536,30 +536,31 @@
         ${cfHtml}
         ${grpHtml}
         ${deviceAppsHtml(d._apps)}
-        ${windowsUpdateHtml(d._updateStates)}
+        ${hardwareInfoHtml(d._hwInfo)}
       </div>
       <div class="il-foot"><span class="il-tag">DEVICE</span><span class="il-brand">Intune Lens · by ROBGRAME</span></div>`;
   }
 
-  function windowsUpdateHtml(states) {
-    if (!states || states.length === 0) return '';
+  function hardwareInfoHtml(hw) {
+    if (!hw) return '';
+    const items = [];
+    if (hw.batteryHealthPercentage) items.push(row('Battery Health', `${hw.batteryHealthPercentage}%`));
+    if (hw.batteryChargeCycles) items.push(row('Charge Cycles', hw.batteryChargeCycles));
+    if (hw.totalStorageSpace) items.push(row('Total Storage', bytes(hw.totalStorageSpace)));
+    if (hw.freeStorageSpace) items.push(row('Free Storage', bytes(hw.freeStorageSpace)));
+    if (hw.ipAddressV4) items.push(row('IPv4', hw.ipAddressV4));
+    if (hw.subnetAddress) items.push(row('Subnet', hw.subnetAddress));
+    if (hw.systemManagementBIOSVersion) items.push(row('BIOS', hw.systemManagementBIOSVersion));
+    if (hw.tpmSpecificationVersion) items.push(row('TPM', hw.tpmSpecificationVersion));
+    if (hw.operatingSystemProductType) items.push(row('OS Type', hw.operatingSystemProductType === 1 ? 'Workstation' : hw.operatingSystemProductType === 3 ? 'Server' : hw.operatingSystemProductType));
+    if (hw.deviceGuardLocalSystemAuthorityCredentialGuardState) items.push(row('Credential Guard', hw.deviceGuardLocalSystemAuthorityCredentialGuardState));
+    if (hw.deviceGuardVirtualizationBasedSecurityState) items.push(row('VBS', hw.deviceGuardVirtualizationBasedSecurityState));
+    if (items.length === 0) return '';
     return `
         <hr class="il-div">
         <div class="il-sec">
-          <div class="il-sec-ttl">Windows Update</div>
-          ${states.map(s => {
-            const status = s.status || s.installStatus || 'unknown';
-            const cls = /success|installed|upToDate/i.test(status) ? 'ok' :
-                        /fail|error/i.test(status) ? 'bad' :
-                        /pending|downloading|installing/i.test(status) ? 'warn' : 'unk';
-            return `
-              ${s.featureUpdateVersion ? row('Feature Update', s.featureUpdateVersion) : ''}
-              ${s.qualityUpdateVersion ? row('Quality Update', s.qualityUpdateVersion) : ''}
-              ${row('Status', status)}
-              ${s.lastScanDateTime ? row('Last Scan', ago(s.lastScanDateTime)) : ''}
-              ${s.lastSuccessfulInstallDateTime ? row('Last Install', ago(s.lastSuccessfulInstallDateTime)) : ''}
-            `;
-          }).join('<hr class="il-div">')}
+          <div class="il-sec-ttl">Hardware Details</div>
+          ${items.join('')}
         </div>`;
   }
 
@@ -1410,7 +1411,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v3.0.3 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v3.1.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
