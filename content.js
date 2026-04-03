@@ -1116,10 +1116,10 @@
       endpoint: `/deviceAppManagement/mobileApps?$select=id,displayName,publisher,description,createdDateTime,lastModifiedDateTime&$top=50`,
       type: 'app', nameField: 'displayName' },
     // Configuration profiles & compliance policies
-    { re: /DevicesMenu.*\/configuration/i,
+    { re: /\/configuration$/i,
       endpoint: `/deviceManagement/deviceConfigurations?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
       type: 'policy', nameField: 'displayName' },
-    { re: /DevicesMenu.*\/compliancePolicy/i,
+    { re: /\/compliancePolicy/i,
       endpoint: `/deviceManagement/deviceCompliancePolicies?$select=id,displayName,description,createdDateTime,lastModifiedDateTime,version&$top=100`,
       type: 'policy', nameField: 'displayName' },
     { re: /SecurityManagementMenu/i,
@@ -1253,7 +1253,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v2.6.2 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v2.6.3 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
