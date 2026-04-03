@@ -965,6 +965,24 @@
     document.addEventListener('mouseup', () => {
       if (dragging) { dragging = false; card.classList.remove('il-dragging'); }
     });
+
+    // 🥚 Easter egg: click 7x on the "by ROBGRAME" footer
+    const brand = card.querySelector('.il-brand');
+    if (brand) {
+      let eggClicks = 0;
+      let eggTimer = null;
+      brand.style.cursor = 'default';
+      brand.addEventListener('click', (e) => {
+        e.stopPropagation();
+        eggClicks++;
+        clearTimeout(eggTimer);
+        eggTimer = setTimeout(() => { eggClicks = 0; }, 1500);
+        if (eggClicks >= 7) {
+          eggClicks = 0;
+          showKonamiEgg();
+        }
+      });
+    }
   }
 
   function scheduleHide() {
@@ -1456,7 +1474,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v3.2.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v3.2.1 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 

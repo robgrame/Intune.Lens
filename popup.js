@@ -121,6 +121,19 @@ document.querySelector('.p-footer')?.addEventListener('click', () => {
   }
 });
 
+// 3. Click 5x on 🔍 logo → Clippy
+let logoClicks = 0;
+let logoTimer = null;
+document.getElementById('p-logo')?.addEventListener('click', () => {
+  logoClicks++;
+  clearTimeout(logoTimer);
+  logoTimer = setTimeout(() => { logoClicks = 0; }, 1500);
+  if (logoClicks >= 5) {
+    logoClicks = 0;
+    showClippy();
+  }
+});
+
 function showMatrix() {
   const existing = document.getElementById('il-matrix');
   if (existing) { existing.remove(); return; }

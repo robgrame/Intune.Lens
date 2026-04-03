@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Intune Lens",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "Rich hover cards for Microsoft Intune objects — see device details, user info, compliance status, and more at a glance.",
   "permissions": [
     "storage",
