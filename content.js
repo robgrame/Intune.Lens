@@ -179,20 +179,17 @@
       }
     }
 
-    // Windows Autopatch status
-    dev._autopatch = null;
-    if (dev.azureADDeviceId) {
-      try {
-        const ap = await graphQuery(
-          `https://services.autopatch.microsoft.com/reporting/reports/v1/devicesReport/registeredDevices/details?deviceId=${dev.azureADDeviceId}`,
-          `dev-autopatch:${dev.azureADDeviceId}`
-        );
-        dev._autopatch = ap;
-        log(`🔄 Autopatch data received`);
-      } catch {
-        // Autopatch may not be available or device not registered
-      }
-    }
+    // Windows Update status (via beta windowsUpdateState)
+    dev._updateStates = [];
+    try {
+      const wu = await graphQuery(
+        `/beta/deviceManagement/managedDevices/${id}/windowsUpdateState`,
+        `dev-wu:${id}`
+      );
+      // Can be single object or collection
+      if (wu.value) dev._updateStates = wu.value;
+      else if (wu.featureUpdateVersion !== undefined) dev._updateStates = [wu];
+    } catch { /* optional */ }
 
     return dev;
   }
@@ -537,28 +534,30 @@
         ${cfHtml}
         ${grpHtml}
         ${deviceAppsHtml(d._apps)}
-        ${autopatchHtml(d._autopatch)}
+        ${windowsUpdateHtml(d._updateStates)}
       </div>
       <div class="il-foot"><span class="il-tag">DEVICE</span><span class="il-brand">Intune Lens · by ROBGRAME</span></div>`;
   }
 
-  function autopatchHtml(ap) {
-    if (!ap) return '';
-    // Autopatch can return a single object or array
-    const data = Array.isArray(ap) ? ap[0] : (ap.value?.[0] || ap);
-    if (!data || (!data.updateStatus && !data.deploymentRing)) return '';
-
+  function windowsUpdateHtml(states) {
+    if (!states || states.length === 0) return '';
     return `
         <hr class="il-div">
         <div class="il-sec">
-          <div class="il-sec-ttl">Windows Autopatch</div>
-          ${data.deploymentRing ? row('Ring', data.deploymentRing) : ''}
-          ${data.updateStatus ? row('Update Status', data.updateStatus) : ''}
-          ${data.currentOsVersion ? row('Current OS', data.currentOsVersion) : ''}
-          ${data.targetOsVersion ? row('Target OS', data.targetOsVersion) : ''}
-          ${data.lastScanTime ? row('Last Scan', ago(data.lastScanTime)) : ''}
-          ${data.pauseStatus ? row('Pause Status', data.pauseStatus) : ''}
-          ${data.expeditedUpdate !== undefined ? row('Expedited', data.expeditedUpdate ? 'Yes' : 'No') : ''}
+          <div class="il-sec-ttl">Windows Update</div>
+          ${states.map(s => {
+            const status = s.status || s.installStatus || 'unknown';
+            const cls = /success|installed|upToDate/i.test(status) ? 'ok' :
+                        /fail|error/i.test(status) ? 'bad' :
+                        /pending|downloading|installing/i.test(status) ? 'warn' : 'unk';
+            return `
+              ${s.featureUpdateVersion ? row('Feature Update', s.featureUpdateVersion) : ''}
+              ${s.qualityUpdateVersion ? row('Quality Update', s.qualityUpdateVersion) : ''}
+              ${row('Status', status)}
+              ${s.lastScanDateTime ? row('Last Scan', ago(s.lastScanDateTime)) : ''}
+              ${s.lastSuccessfulInstallDateTime ? row('Last Install', ago(s.lastSuccessfulInstallDateTime)) : ''}
+            `;
+          }).join('<hr class="il-div">')}
         </div>`;
   }
 
@@ -1409,7 +1408,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v3.0.1 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v3.0.2 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 
