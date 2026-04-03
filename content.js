@@ -503,7 +503,7 @@
         ${grpHtml}
         ${deviceAppsHtml(d._apps)}
       </div>
-      <div class="il-foot"><span class="il-tag">DEVICE</span><span class="il-brand">Intune Lens</span></div>`;
+      <div class="il-foot"><span class="il-tag">DEVICE</span><span class="il-brand">Intune Lens · by ROBGRAME</span></div>`;
   }
 
   function userCard(u) {
@@ -531,7 +531,7 @@
         </div>
         ${devItems ? `<hr class="il-div"><div class="il-sec"><div class="il-sec-ttl">Managed Devices (${u._devices.length})</div><div class="il-dev-list">${devItems}</div></div>` : ''}
       </div>
-      <div class="il-foot"><span class="il-tag">USER</span><span class="il-brand">Intune Lens</span></div>`;
+      <div class="il-foot"><span class="il-tag">USER</span><span class="il-brand">Intune Lens · by ROBGRAME</span></div>`;
   }
 
   function appCard(a) {
@@ -591,7 +591,7 @@
         ${statsHtml}
         ${assignHtml}
       </div>
-      <div class="il-foot"><span class="il-tag">APP</span><span class="il-brand">Intune Lens</span></div>`;
+      <div class="il-foot"><span class="il-tag">APP</span><span class="il-brand">Intune Lens · by ROBGRAME</span></div>`;
   }
 
   function policyCard(p) {
@@ -662,7 +662,7 @@
         ${inclHtml}
         ${exclHtml}
       </div>
-      <div class="il-foot"><span class="il-tag">POLICY</span><span class="il-brand">Intune Lens</span></div>`;
+      <div class="il-foot"><span class="il-tag">POLICY</span><span class="il-brand">Intune Lens · by ROBGRAME</span></div>`;
   }
 
   function loadingCard(type) {
