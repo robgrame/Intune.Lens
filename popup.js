@@ -66,9 +66,12 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (r) => {
 const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
 let konamiIdx = 0;
 document.addEventListener('keydown', (e) => {
-  if (e.key === KONAMI[konamiIdx]) {
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  console.log(`🎮 Key: "${key}" | expecting: "${KONAMI[konamiIdx]}" | progress: ${konamiIdx}/${KONAMI.length}`);
+  if (key === KONAMI[konamiIdx]) {
     konamiIdx++;
     if (konamiIdx === KONAMI.length) {
+      console.log('🎮 KONAMI CODE ACTIVATED! 🎉');
       konamiIdx = 0;
       showClippy();
     }
