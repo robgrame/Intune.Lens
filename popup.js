@@ -86,13 +86,16 @@ function showClippy() {
 
   const phrases = [
     "It looks like you're trying to manage devices.\nWould you like help enrolling 10,000 of them?",
-    "I see you have 3 non-compliant devices.\nHave you tried turning them off and on again?",
     "Pro tip: the 'Sync' button doesn't work faster\nif you click it 47 times. I counted.",
     "Your BitLocker key rotated successfully!\n...just kidding. Check the audit logs 😏",
     "Congratulations! You've found me.\nI've been hiding here since Windows XP.",
-    "I noticed you haven't taken a break in 4 hours.\nIntune will still be broken when you get back.",
     "Fun fact: the Intune portal loads faster\nif you believe hard enough ✨",
-    "Have you tried assigning this policy\nto 'All Users' and hoping for the best?",
+    "Your Autopilot profile failed to apply.\nThe device identifies as a toaster 🍞",
+    "That device hasn't checked in for 90 days.\nIt's on a spiritual journey 🧘",
+    "You assigned 12 policies to one device.\nThat device now needs therapy.",
+    "Every time you create a dynamic group,\nan Azure AD engineer gets a headache 🤕",
+    "Your SCEP certificate deployment failed.\nNobody understands SCEP. Nobody.",
+    "'Pending' is Intune's way of saying\n'I'll get to it when I get to it' 🐌",
   ];
 
   const el = document.createElement('div');

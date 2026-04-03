@@ -1577,6 +1577,23 @@
       "I noticed you haven't taken a break in 4 hours.\nIntune will still be broken when you get back.",
       "Fun fact: the Intune portal loads faster\nif you believe hard enough ✨",
       "Have you tried assigning this policy\nto 'All Users' and hoping for the best?",
+      "Your Autopilot profile failed to apply.\nThe device has decided to identify as a toaster 🍞",
+      "Good news: all devices are compliant!\nBad news: I'm hallucinating. Check again.",
+      "According to my calculations, your next\nIntune outage is in approximately... now.",
+      "I see you're creating another Configuration Profile.\nBold move. Let's see how this plays out 🍿",
+      "That device hasn't checked in for 90 days.\nIt's not lost. It's on a spiritual journey 🧘",
+      "Why did the Intune admin cross the road?\nTo get to the other compliance policy.",
+      "You have 47 pending app installations.\nI'm sure they'll all succeed. Trust the process.",
+      "Your Windows Update ring is set to 'Broad'.\nAlso known as 'YOLO deployment' 🎲",
+      "I noticed you assigned 12 policies to one device.\nThat device now needs therapy.",
+      "Remember: every time you create a dynamic group,\nan Azure AD engineer gets a headache 🤕",
+      "This device was last seen in 2024.\nSome say it's still trying to install .NET Framework.",
+      "Your remediation script ran successfully!\n...on 2 out of 5000 devices. Baby steps! 👶",
+      "I see you're filtering by 'Non-compliant'.\nPrepare yourself. It's going to be a long day ☕",
+      "Fun fact: 'Pending' is just Intune's way of saying\n'I'll get to it when I get to it' 🐌",
+      "Your SCEP certificate deployment failed.\nEven I don't understand SCEP. Nobody does.",
+      "Plot twist: the device IS compliant.\nThe policy just hasn't realized it yet.",
+      "You've been staring at this portal for 3 hours.\nThe devices aren't going to fix themselves.\n...or will they? 🤔",
     ];
 
     const el = document.createElement('div');
