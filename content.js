@@ -93,6 +93,18 @@
     });
   }
 
+  function autopatchQuery(endpoint, cacheKey) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { type: 'autopatchQuery', endpoint, cacheKey },
+        (r) => {
+          if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+          r?.ok ? resolve(r.data) : reject(new Error(r?.error || 'Autopatch query failed'));
+        }
+      );
+    });
+  }
+
   // ==========================================================
   // Data fetchers
   // ==========================================================
@@ -179,18 +191,28 @@
       }
     }
 
-    // Windows Update status (via beta windowsUpdateState)
-    // Windows Update info via beta device properties
-    dev._updateStates = [];
+    // Beta hardware info
     try {
       const betaDev = await graphQuery(
         `/beta/deviceManagement/managedDevices/${id}?$select=windowsActiveMalwareCount,windowsRemediatedMalwareCount,hardwareInformation`,
         `dev-beta:${id}`
       );
       if (betaDev.hardwareInformation) dev._hwInfo = betaDev.hardwareInformation;
-      log(`🔄 Beta device info received`);
-    } catch (wuErr) {
-      log(`🔄 Beta device info: ${wuErr.message?.substring(0, 60)}`);
+    } catch { /* optional */ }
+
+    // Windows Autopatch status (requires user to have visited Autopatch in this session)
+    dev._autopatch = null;
+    if (dev.azureADDeviceId) {
+      try {
+        const ap = await autopatchQuery(
+          `/reporting/reports/v1/devicesReport/registeredDevices/details?deviceId=${dev.azureADDeviceId}`,
+          `dev-autopatch:${dev.azureADDeviceId}`
+        );
+        dev._autopatch = ap;
+        log(`🔄 Autopatch data received`);
+      } catch (apErr) {
+        log(`🔄 Autopatch: ${apErr.message?.substring(0, 60)}`);
+      }
     }
 
     return dev;
@@ -537,6 +559,7 @@
         ${grpHtml}
         ${deviceAppsHtml(d._apps)}
         ${hardwareInfoHtml(d._hwInfo)}
+        ${autopatchInfoHtml(d._autopatch)}
       </div>
       <div class="il-foot"><span class="il-tag">DEVICE</span><span class="il-brand">Intune Lens · by ROBGRAME</span></div>`;
   }
@@ -560,6 +583,28 @@
         <hr class="il-div">
         <div class="il-sec">
           <div class="il-sec-ttl">Hardware Details</div>
+          ${items.join('')}
+        </div>`;
+  }
+
+  function autopatchInfoHtml(ap) {
+    if (!ap) return '';
+    const data = Array.isArray(ap) ? ap[0] : (ap.value?.[0] || ap.data?.[0] || ap);
+    if (!data || typeof data !== 'object') return '';
+    const items = [];
+    if (data.deploymentRing || data.ring) items.push(row('Ring', data.deploymentRing || data.ring));
+    if (data.updateStatus || data.status) items.push(row('Update Status', data.updateStatus || data.status));
+    if (data.currentOsVersion || data.osVersion) items.push(row('Current OS', data.currentOsVersion || data.osVersion));
+    if (data.targetOsVersion) items.push(row('Target OS', data.targetOsVersion));
+    if (data.policyName) items.push(row('Policy', data.policyName));
+    if (data.lastScanTime || data.lastSyncDateTime) items.push(row('Last Scan', ago(data.lastScanTime || data.lastSyncDateTime)));
+    if (data.pauseStatus) items.push(row('Paused', data.pauseStatus));
+    if (data.hotpatchEnrolled !== undefined) items.push(row('Hotpatch', data.hotpatchEnrolled ? '✓ Enrolled' : 'Not enrolled'));
+    if (items.length === 0) return '';
+    return `
+        <hr class="il-div">
+        <div class="il-sec">
+          <div class="il-sec-ttl">Windows Autopatch</div>
           ${items.join('')}
         </div>`;
   }
@@ -1411,7 +1456,7 @@
     }
 
     const mode = IS_MAIN ? 'Main frame' : 'Blade iframe';
-    log(`🚀 Intune Lens v3.1.0 — ${mode} on`, location.href.substring(0, 100));
+    log(`🚀 Intune Lens v3.2.0 — ${mode} on`, location.href.substring(0, 100));
     loadSettings();
     ensureContainer();
 

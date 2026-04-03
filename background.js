@@ -11,8 +11,8 @@ const cache = new Map();
 let sharedLookup = {};  // shared name→obj lookup for blade iframes
 
 // ----------------------------------------------------------
-// Token capture via webRequest (reads Authorization header
-// from Intune portal's own Graph calls)
+// Token capture via webRequest (reads Authorization header)
+// Captures both Graph and Autopatch tokens separately
 // ----------------------------------------------------------
 chrome.webRequest.onSendHeaders.addListener(
   (details) => {
@@ -22,13 +22,15 @@ chrome.webRequest.onSendHeaders.addListener(
     );
     if (auth?.value?.startsWith('Bearer ')) {
       const token = auth.value.substring(7);
-      chrome.storage.session.set({
-        authToken: token,
-        tokenTimestamp: Date.now()
-      });
+      if (details.url.includes('graph.microsoft.com')) {
+        chrome.storage.session.set({ authToken: token, tokenTimestamp: Date.now() });
+      } else if (details.url.includes('autopatch.microsoft.com')) {
+        chrome.storage.session.set({ autopatchToken: token, autopatchTokenTimestamp: Date.now() });
+        console.log('[IL-SW] Autopatch token captured');
+      }
     }
   },
-  { urls: ['https://graph.microsoft.com/*'] },
+  { urls: ['https://graph.microsoft.com/*', 'https://services.autopatch.microsoft.com/*'] },
   ['requestHeaders', 'extraHeaders']
 );
 
@@ -53,7 +55,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       handleGraphQuery(msg.endpoint, msg.cacheKey)
         .then(data  => sendResponse({ ok: true, data }))
         .catch(err  => sendResponse({ ok: false, error: err.message }));
-      return true; // keep channel open for async response
+      return true;
+    }
+
+    // Autopatch API query (uses separate token)
+    case 'autopatchQuery': {
+      handleAutopatchQuery(msg.endpoint, msg.cacheKey)
+        .then(data  => sendResponse({ ok: true, data }))
+        .catch(err  => sendResponse({ ok: false, error: err.message }));
+      return true;
     }
 
     // Extension status (used by popup)
@@ -147,10 +157,41 @@ function pruneCache() {
   for (const [k, v] of cache) {
     if (now - v.ts > CACHE_TTL) cache.delete(k);
   }
-  // If still too big, drop oldest half
   if (cache.size > MAX_CACHE_ENTRIES) {
     const entries = [...cache.entries()].sort((a, b) => a[1].ts - b[1].ts);
     const toDrop = Math.floor(entries.length / 2);
     for (let i = 0; i < toDrop; i++) cache.delete(entries[i][0]);
   }
+}
+
+// ----------------------------------------------------------
+// Autopatch API helper (uses separate token)
+// ----------------------------------------------------------
+async function handleAutopatchQuery(endpoint, cacheKey) {
+  const key = cacheKey || endpoint;
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
+
+  const { autopatchToken, autopatchTokenTimestamp } = await chrome.storage.session.get([
+    'autopatchToken', 'autopatchTokenTimestamp'
+  ]);
+  if (!autopatchToken || Date.now() - (autopatchTokenTimestamp || 0) > TOKEN_MAX_AGE) {
+    throw new Error('No Autopatch token. Browse the Autopatch section in Intune first.');
+  }
+
+  const url = endpoint.startsWith('https://') ? endpoint : `https://services.autopatch.microsoft.com${endpoint}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${autopatchToken}` }
+  });
+
+  if (!res.ok) {
+    let errBody = '';
+    try { errBody = await res.text(); } catch {}
+    throw new Error(`Autopatch ${res.status}: ${errBody.substring(0, 200)}`);
+  }
+
+  const data = await res.json();
+  cache.set(key, { data, ts: Date.now() });
+  if (cache.size > MAX_CACHE_ENTRIES) pruneCache();
+  return data;
 }
