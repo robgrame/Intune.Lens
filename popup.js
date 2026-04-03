@@ -57,3 +57,93 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (r) => {
     el.className = 'p-status bad';
   }
 });
+
+// ============================================================
+// 🥚 Easter Eggs
+// ============================================================
+
+// 1. Konami Code: ↑↑↓↓←→←→BA
+const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let konamiIdx = 0;
+document.addEventListener('keydown', (e) => {
+  if (e.key === KONAMI[konamiIdx]) {
+    konamiIdx++;
+    if (konamiIdx === KONAMI.length) {
+      konamiIdx = 0;
+      showClippy();
+    }
+  } else {
+    konamiIdx = 0;
+  }
+});
+
+function showClippy() {
+  const existing = document.getElementById('il-egg');
+  if (existing) { existing.remove(); return; }
+
+  const phrases = [
+    "It looks like you're trying to manage devices.\nWould you like help enrolling 10,000 of them?",
+    "I see you have 3 non-compliant devices.\nHave you tried turning them off and on again?",
+    "Pro tip: the 'Sync' button doesn't work faster\nif you click it 47 times. I counted.",
+    "Your BitLocker key rotated successfully!\n...just kidding. Check the audit logs 😏",
+    "Congratulations! You've found me.\nI've been hiding here since Windows XP.",
+    "I noticed you haven't taken a break in 4 hours.\nIntune will still be broken when you get back.",
+    "Fun fact: the Intune portal loads faster\nif you believe hard enough ✨",
+    "Have you tried assigning this policy\nto 'All Users' and hoping for the best?",
+  ];
+
+  const el = document.createElement('div');
+  el.id = 'il-egg';
+  el.innerHTML = `
+    <div class="egg-clippy">📎</div>
+    <div class="egg-bubble">
+      <div class="egg-text">${phrases[Math.floor(Math.random() * phrases.length)]}</div>
+      <div class="egg-dismiss">click to dismiss</div>
+    </div>
+  `;
+  el.addEventListener('click', () => el.remove());
+  document.body.appendChild(el);
+}
+
+// 2. Triple-click on version footer → matrix rain
+let footerClicks = 0;
+let footerTimer = null;
+document.querySelector('.p-footer')?.addEventListener('click', () => {
+  footerClicks++;
+  clearTimeout(footerTimer);
+  footerTimer = setTimeout(() => { footerClicks = 0; }, 500);
+  if (footerClicks >= 3) {
+    footerClicks = 0;
+    showMatrix();
+  }
+});
+
+function showMatrix() {
+  const existing = document.getElementById('il-matrix');
+  if (existing) { existing.remove(); return; }
+
+  const canvas = document.createElement('canvas');
+  canvas.id = 'il-matrix';
+  canvas.style.cssText = 'position:fixed;inset:0;z-index:99999;pointer-events:none;opacity:0.85;';
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  canvas.width = 300; canvas.height = 400;
+
+  const chars = 'INTUNE01COMPLIANTSYNCDEPLOY🔒📱💻📋✓✗'.split('');
+  const cols = Math.floor(canvas.width / 14);
+  const drops = Array(cols).fill(1);
+
+  const interval = setInterval(() => {
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#0078d4';
+    ctx.font = '13px monospace';
+    for (let i = 0; i < cols; i++) {
+      ctx.fillText(chars[Math.floor(Math.random() * chars.length)], i * 14, drops[i] * 14);
+      if (drops[i] * 14 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }, 50);
+
+  setTimeout(() => { clearInterval(interval); canvas.remove(); }, 5000);
+}

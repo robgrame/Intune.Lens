@@ -73,4 +73,33 @@ body {
 .p-footer {
   padding: 10px 16px; text-align: center;
   font-size: 10px; color: #a19f9d;
+  cursor: default; user-select: none;
 }
+
+/* ---- Easter Eggs ---- */
+#il-egg {
+  position: fixed; bottom: 8px; left: 8px; right: 8px;
+  display: flex; align-items: flex-end; gap: 8px;
+  z-index: 99999; cursor: pointer;
+  animation: egg-in .4s ease;
+}
+@keyframes egg-in { from { opacity:0; transform:translateY(20px); } }
+.egg-clippy {
+  font-size: 48px; line-height: 1;
+  animation: egg-bounce 1s ease infinite;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,.2));
+}
+@keyframes egg-bounce {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.egg-bubble {
+  background: #fffde7; border: 2px solid #fdd835;
+  border-radius: 12px 12px 12px 4px;
+  padding: 10px 12px; font-size: 11px;
+  line-height: 1.5; color: #333;
+  box-shadow: 0 3px 12px rgba(0,0,0,.15);
+  white-space: pre-line; flex: 1;
+}
+.egg-text { font-weight: 500; }
+.egg-dismiss { font-size: 9px; color: #999; margin-top: 6px; text-align: right; }
